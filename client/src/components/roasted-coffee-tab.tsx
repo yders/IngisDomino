@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { RoastedCoffee } from "@shared/schema";
+import type { RoastedCoffee, GreenBean } from "@shared/schema";
 import AddItemModal from "./add-item-modal";
 import EditItemModal from "./edit-item-modal";
 
@@ -22,6 +22,10 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
 
   const { data: roastedCoffee = [], isLoading } = useQuery<RoastedCoffee[]>({
     queryKey: ["/api/roasted-coffee"],
+  });
+
+  const { data: greenBeans = [] } = useQuery<GreenBean[]>({
+    queryKey: ["/api/green-beans"],
   });
 
   const deleteMutation = useMutation({
@@ -71,6 +75,11 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
     updateWeightMutation.mutate({ id, currentWeight: value });
   };
 
+  const getGreenBeanInfo = (greenBeanId: string) => {
+    const greenBean = greenBeans.find(bean => bean.id === greenBeanId);
+    return greenBean ? `${greenBean.variety} (${greenBean.origin})` : 'Unknown';
+  };
+
   if (isLoading) {
     return <div className="p-6">Loading roasted coffee...</div>;
   }
@@ -101,6 +110,8 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
             <TableHeader>
               <TableRow>
                 <TableHead>Variety</TableHead>
+                <TableHead>Green Bean Source</TableHead>
+                <TableHead>Green Bean Used (kg)</TableHead>
                 <TableHead>Roast Date</TableHead>
                 <TableHead>Roast Level</TableHead>
                 <TableHead>Weight (kg)</TableHead>
@@ -118,6 +129,10 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
                     <TableCell>
                       <div className="font-medium text-gray-900">{coffee.variety}</div>
                     </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {getGreenBeanInfo(coffee.greenBeanId)}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">{coffee.greenBeanWeight}</TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(coffee.roastDate).toLocaleDateString()}
                     </TableCell>

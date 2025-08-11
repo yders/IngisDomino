@@ -118,6 +118,8 @@ export class MemStorage implements IStorage {
     const greenBean: GreenBean = {
       ...insertGreenBean,
       id,
+      currentStock: insertGreenBean.currentStock || "0",
+      minStock: insertGreenBean.minStock || "0",
       lastUpdated: new Date(),
     };
     this.greenBeans.set(id, greenBean);
@@ -152,6 +154,28 @@ export class MemStorage implements IStorage {
 
   async createRoastedCoffee(insertRoastedCoffee: InsertRoastedCoffee): Promise<RoastedCoffee> {
     const id = randomUUID();
+    
+    // Deduct green bean stock
+    const greenBean = this.greenBeans.get(insertRoastedCoffee.greenBeanId);
+    if (!greenBean) {
+      throw new Error("Green bean not found");
+    }
+    
+    const currentStock = parseFloat(greenBean.currentStock);
+    const usedWeight = parseFloat(insertRoastedCoffee.greenBeanWeight);
+    
+    if (currentStock < usedWeight) {
+      throw new Error("Insufficient green bean stock");
+    }
+    
+    // Update green bean stock
+    const updatedGreenBean: GreenBean = {
+      ...greenBean,
+      currentStock: (currentStock - usedWeight).toString(),
+      lastUpdated: new Date(),
+    };
+    this.greenBeans.set(insertRoastedCoffee.greenBeanId, updatedGreenBean);
+    
     const roastedCoffeeItem: RoastedCoffee = {
       ...insertRoastedCoffee,
       id,
@@ -190,6 +214,9 @@ export class MemStorage implements IStorage {
     const packagingMaterial: PackagingMaterial = {
       ...insertPackagingMaterial,
       id,
+      currentStock: insertPackagingMaterial.currentStock || 0,
+      minStock: insertPackagingMaterial.minStock || 0,
+      description: insertPackagingMaterial.description || null,
       lastUpdated: new Date(),
     };
     this.packagingMaterials.set(id, packagingMaterial);

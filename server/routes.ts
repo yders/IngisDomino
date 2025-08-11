@@ -78,6 +78,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roastedCoffee = await storage.createRoastedCoffee(validatedData);
       res.json(roastedCoffee);
     } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === "Green bean not found") {
+          return res.status(404).json({ error: "Green bean not found" });
+        }
+        if (error.message === "Insufficient green bean stock") {
+          return res.status(400).json({ error: "Insufficient green bean stock" });
+        }
+      }
       res.status(400).json({ error: "Invalid roasted coffee data" });
     }
   });

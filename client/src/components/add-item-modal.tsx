@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { X } from "lucide-react";
 import {
@@ -19,6 +19,7 @@ import {
   insertGreenBeanSchema,
   insertRoastedCoffeeSchema,
   insertPackagingMaterialSchema,
+  type GreenBean,
 } from "@shared/schema";
 
 interface AddItemModalProps {
@@ -55,6 +56,12 @@ export default function AddItemModal({ open, onOpenChange, defaultType }: AddIte
   });
 
   const itemType = form.watch("itemType");
+
+  // Fetch green beans for roasted coffee creation
+  const { data: greenBeans = [] } = useQuery<GreenBean[]>({
+    queryKey: ["/api/green-beans"],
+    enabled: itemType === "roasted-coffee",
+  });
 
   const addItemMutation = useMutation({
     mutationFn: async (data: AddItemForm) => {
@@ -168,10 +175,46 @@ export default function AddItemModal({ open, onOpenChange, defaultType }: AddIte
           {itemType === "roasted-coffee" && (
             <>
               <div>
-                <Label htmlFor="variety">Variety</Label>
+                <Label htmlFor="greenBeanId">Green Bean Used</Label>
+                <Select
+                  value={form.watch("greenBeanId") || ""}
+                  onValueChange={(value) => {
+                    const selectedBean = greenBeans.find(bean => bean.id === value);
+                    if (selectedBean) {
+                      form.setValue("greenBeanId", value);
+                      form.setValue("variety", selectedBean.variety);
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-green-bean">
+                    <SelectValue placeholder="Select green bean..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {greenBeans.map((bean) => (
+                      <SelectItem key={bean.id} value={bean.id}>
+                        {bean.variety} ({bean.origin}) - {bean.currentStock}kg available
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="greenBeanWeight">Green Bean Weight Used (kg)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  {...form.register("greenBeanWeight")}
+                  placeholder="0"
+                  data-testid="input-green-bean-weight"
+                />
+              </div>
+              <div>
+                <Label htmlFor="variety">Variety (Auto-filled)</Label>
                 <Input
                   {...form.register("variety")}
-                  placeholder="e.g., Colombian Supremo"
+                  placeholder="Select green bean first"
+                  readOnly
+                  className="bg-gray-50"
                   data-testid="input-variety"
                 />
               </div>
