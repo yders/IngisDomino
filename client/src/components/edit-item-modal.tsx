@@ -48,7 +48,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
     }
   };
 
-  const form = useForm({
+  const form = useForm<any>({
     resolver: zodResolver(getSchema()),
     defaultValues: {},
   });
@@ -159,7 +159,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
               <div>
                 <Label htmlFor="greenBeanId">Green Bean Used</Label>
                 <Select
-                  value={form.watch("greenBeanId") || ""}
+                  value={form.watch("greenBeanId") || undefined}
                   onValueChange={(value) => {
                     const selectedBean = greenBeans.find(bean => bean.id === value);
                     if (selectedBean) {
@@ -172,9 +172,9 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                     <SelectValue placeholder="Select green bean..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {greenBeans.map((bean) => (
+                    {greenBeans.filter(bean => bean.id && bean.id.trim() !== '').map((bean) => (
                       <SelectItem key={bean.id} value={bean.id}>
-                        {bean.variety} ({bean.origin}) - {bean.currentStock}kg available
+                        {bean.variety} {bean.origin ? `(${bean.origin})` : ''} - {bean.currentStock}kg available
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -209,7 +209,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
               <div>
                 <Label htmlFor="roastLevel">Roast Level</Label>
                 <Select
-                  value={form.watch("roastLevel") || ""}
+                  value={form.watch("roastLevel") || undefined}
                   onValueChange={(value) => form.setValue("roastLevel", value)}
                 >
                   <SelectTrigger data-testid="select-roast-level">
@@ -255,7 +255,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
               <div>
                 <Label htmlFor="type">Type</Label>
                 <Select
-                  value={form.watch("type") || ""}
+                  value={form.watch("type") || undefined}
                   onValueChange={(value) => form.setValue("type", value)}
                 >
                   <SelectTrigger data-testid="select-type">
@@ -270,7 +270,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
               <div>
                 <Label htmlFor="size">Size</Label>
                 <Select
-                  value={form.watch("size") || ""}
+                  value={form.watch("size") || undefined}
                   onValueChange={(value) => form.setValue("size", value)}
                 >
                   <SelectTrigger data-testid="select-size">
