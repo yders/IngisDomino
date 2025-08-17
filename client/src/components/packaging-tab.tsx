@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Minus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PackagingMaterial } from "@shared/schema";
@@ -52,8 +53,8 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     return { label: "Good Stock", variant: "default" as const };
   };
 
-  const adjustStock = (id: string, currentStock: number, adjustment: number) => {
-    const newStock = Math.max(0, currentStock + adjustment);
+  const handleStockChange = (id: string, value: string) => {
+    const newStock = Math.max(0, parseInt(value) || 0);
     updateStockMutation.mutate({ id, currentStock: newStock });
   };
 
@@ -62,39 +63,22 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     
     return (
       <div className="bg-gray-50 rounded-lg p-4" data-testid={`card-packaging-${material.id}`}>
-        <div className="flex justify-between items-center">
-          <div>
-            <h4 className="font-medium text-gray-900">{material.name}</h4>
-            <p className="text-sm text-gray-600">{material.description}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-lg font-semibold text-gray-900" data-testid={`text-stock-${material.id}`}>
-              {material.currentStock}
-            </div>
-            <div className="text-sm text-gray-600">units</div>
-          </div>
+        <div>
+          <h4 className="font-medium text-gray-900">{material.name}</h4>
+          <p className="text-sm text-gray-600">{material.description}</p>
         </div>
         <div className="mt-3 flex justify-between items-center">
           <Badge variant={status.variant}>{status.label}</Badge>
-          <div className="flex space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => adjustStock(material.id, material.currentStock, 10)}
-              className="text-green-600 hover:text-green-800"
-              data-testid={`button-increase-${material.id}`}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => adjustStock(material.id, material.currentStock, -1)}
-              className="text-red-600 hover:text-red-800"
-              data-testid={`button-decrease-${material.id}`}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Stock:</span>
+            <Input
+              type="number"
+              min="0"
+              value={material.currentStock}
+              onChange={(e) => handleStockChange(material.id, e.target.value)}
+              className="w-20"
+              data-testid={`input-stock-${material.id}`}
+            />
           </div>
         </div>
       </div>
