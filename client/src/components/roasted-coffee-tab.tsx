@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -41,18 +40,6 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
     },
   });
 
-  const updateWeightMutation = useMutation({
-    mutationFn: async ({ id, currentWeight }: { id: string; currentWeight: string }) => {
-      await apiRequest("PUT", `/api/roasted-coffee/${id}`, { currentWeight });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roasted-coffee"] });
-    },
-    onError: () => {
-      toast({ title: "Failed to update weight", variant: "destructive" });
-    },
-  });
-
   const filteredCoffee = roastedCoffee.filter((coffee) => {
     return coffee.variety.toLowerCase().includes(searchTerm.toLowerCase());
   });
@@ -69,10 +56,6 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
     if (days <= 2) return { label: `${days} day${days !== 1 ? 's' : ''}`, variant: "default" as const };
     if (days <= 7) return { label: `${days} days`, variant: "secondary" as const };
     return { label: `${days} days`, variant: "destructive" as const };
-  };
-
-  const handleWeightChange = (id: string, value: string) => {
-    updateWeightMutation.mutate({ id, currentWeight: value });
   };
 
   const getGreenBeanInfo = (greenBeanId: string) => {
@@ -113,9 +96,6 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
                 <TableHead>Green Bean Source</TableHead>
                 <TableHead>Green Bean Used (kg)</TableHead>
                 <TableHead>Roast Date</TableHead>
-                <TableHead>Roast Level</TableHead>
-                <TableHead>Weight (kg)</TableHead>
-                <TableHead>Remaining (kg)</TableHead>
                 <TableHead>Days Since Roast</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -135,18 +115,6 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
                     <TableCell className="text-sm text-gray-600">{coffee.greenBeanWeight}</TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(coffee.roastDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">{coffee.roastLevel}</TableCell>
-                    <TableCell className="text-sm text-gray-600">{coffee.originalWeight}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={coffee.currentWeight}
-                        onChange={(e) => handleWeightChange(coffee.id, e.target.value)}
-                        className="w-20"
-                        data-testid={`input-weight-${coffee.id}`}
-                      />
                     </TableCell>
                     <TableCell>
                       <Badge variant={daysLabel.variant}>{daysLabel.label}</Badge>

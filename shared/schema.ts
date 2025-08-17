@@ -18,9 +18,6 @@ export const roastedCoffee = pgTable("roasted_coffee", {
   greenBeanId: varchar("green_bean_id").notNull(), // Reference to green bean used
   greenBeanWeight: decimal("green_bean_weight", { precision: 10, scale: 2 }).notNull(), // Amount of green beans used
   roastDate: date("roast_date").notNull(),
-  roastLevel: text("roast_level").notNull(), // Light, Medium, Dark
-  originalWeight: decimal("original_weight", { precision: 10, scale: 2 }).notNull(),
-  currentWeight: decimal("current_weight", { precision: 10, scale: 2 }).notNull(),
 });
 
 export const packagingMaterials = pgTable("packaging_materials", {

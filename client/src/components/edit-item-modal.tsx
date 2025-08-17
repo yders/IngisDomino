@@ -206,40 +206,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                   data-testid="input-roast-date"
                 />
               </div>
-              <div>
-                <Label htmlFor="roastLevel">Roast Level</Label>
-                <Select
-                  value={form.watch("roastLevel") || undefined}
-                  onValueChange={(value) => form.setValue("roastLevel", value)}
-                >
-                  <SelectTrigger data-testid="select-roast-level">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Light">Light</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Dark">Dark</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="originalWeight">Original Weight (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  {...form.register("originalWeight")}
-                  data-testid="input-original-weight"
-                />
-              </div>
-              <div>
-                <Label htmlFor="currentWeight">Current Weight (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  {...form.register("currentWeight")}
-                  data-testid="input-current-weight"
-                />
-              </div>
+
             </>
           )}
 
