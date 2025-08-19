@@ -172,8 +172,8 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                     <SelectValue placeholder="Select green bean..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {greenBeans.filter(bean => bean.id && bean.id.trim() !== '').map((bean) => (
-                      <SelectItem key={bean.id} value={bean.id}>
+                    {greenBeans.map((bean) => (
+                      <SelectItem key={bean.id} value={bean.id || "invalid"}>
                         {bean.variety} {bean.origin ? `(${bean.origin})` : ''} - {bean.currentStock}kg available
                       </SelectItem>
                     ))}
@@ -244,19 +244,11 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {form.watch("type") === "coffee_bag" && (
-                      <>
-                        <SelectItem value="250g">250g</SelectItem>
-                        <SelectItem value="500g">500g</SelectItem>
-                      </>
-                    )}
-                    {form.watch("type") === "post_bag" && (
-                      <>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
-                      </>
-                    )}
+                    <SelectItem value="250g">250g</SelectItem>
+                    <SelectItem value="500g">500g</SelectItem>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

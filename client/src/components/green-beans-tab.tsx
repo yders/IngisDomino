@@ -61,7 +61,7 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
     return matchesSearch && matchesOrigin;
   });
 
-  const uniqueOrigins = [...new Set(greenBeans.map(bean => bean.origin))];
+  const uniqueOrigins = Array.from(new Set(greenBeans.map(bean => bean.origin).filter(origin => origin && origin.trim() !== '')));
 
   const getStockStatus = (currentStock: string, minStock: string) => {
     const current = parseFloat(currentStock);
