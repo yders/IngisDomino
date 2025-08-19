@@ -7,9 +7,14 @@ import {
   type UpdateRoastedCoffee,
   type PackagingMaterial,
   type InsertPackagingMaterial,
-  type UpdatePackagingMaterial
+  type UpdatePackagingMaterial,
+  greenBeans,
+  roastedCoffee,
+  packagingMaterials
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Green Beans
@@ -37,6 +42,153 @@ export interface IStorage {
   getUser(id: string): Promise<any>;
   getUserByUsername(username: string): Promise<any>;
   createUser(user: any): Promise<any>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // Green Beans
+  async getGreenBeans(): Promise<GreenBean[]> {
+    return await db.select().from(greenBeans);
+  }
+
+  async getGreenBean(id: string): Promise<GreenBean | undefined> {
+    const [bean] = await db.select().from(greenBeans).where(eq(greenBeans.id, id));
+    return bean || undefined;
+  }
+
+  async createGreenBean(greenBean: InsertGreenBean): Promise<GreenBean> {
+    const [bean] = await db
+      .insert(greenBeans)
+      .values({
+        ...greenBean,
+        id: randomUUID(),
+        lastUpdated: new Date()
+      })
+      .returning();
+    return bean;
+  }
+
+  async updateGreenBean(id: string, updates: UpdateGreenBean): Promise<GreenBean | undefined> {
+    const [bean] = await db
+      .update(greenBeans)
+      .set({
+        ...updates,
+        lastUpdated: new Date()
+      })
+      .where(eq(greenBeans.id, id))
+      .returning();
+    return bean || undefined;
+  }
+
+  async deleteGreenBean(id: string): Promise<boolean> {
+    const result = await db.delete(greenBeans).where(eq(greenBeans.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Roasted Coffee
+  async getRoastedCoffee(): Promise<RoastedCoffee[]> {
+    return await db.select().from(roastedCoffee);
+  }
+
+  async getRoastedCoffeeItem(id: string): Promise<RoastedCoffee | undefined> {
+    const [coffee] = await db.select().from(roastedCoffee).where(eq(roastedCoffee.id, id));
+    return coffee || undefined;
+  }
+
+  async createRoastedCoffee(insertRoastedCoffee: InsertRoastedCoffee): Promise<RoastedCoffee> {
+    // First check if green bean exists and has sufficient stock
+    const greenBean = await this.getGreenBean(insertRoastedCoffee.greenBeanId);
+    if (!greenBean) {
+      throw new Error("Green bean not found");
+    }
+    
+    const currentStock = parseFloat(greenBean.currentStock);
+    const usedWeight = parseFloat(insertRoastedCoffee.greenBeanWeight);
+    
+    if (currentStock < usedWeight) {
+      throw new Error("Insufficient green bean stock");
+    }
+    
+    // Update green bean stock
+    await this.updateGreenBean(insertRoastedCoffee.greenBeanId, {
+      currentStock: (currentStock - usedWeight).toString()
+    });
+    
+    // Create roasted coffee entry
+    const [newCoffee] = await db
+      .insert(roastedCoffee)
+      .values({
+        ...insertRoastedCoffee,
+        id: randomUUID()
+      })
+      .returning();
+    return newCoffee;
+  }
+
+  async updateRoastedCoffee(id: string, updates: UpdateRoastedCoffee): Promise<RoastedCoffee | undefined> {
+    const [coffee] = await db
+      .update(roastedCoffee)
+      .set(updates)
+      .where(eq(roastedCoffee.id, id))
+      .returning();
+    return coffee || undefined;
+  }
+
+  async deleteRoastedCoffee(id: string): Promise<boolean> {
+    const result = await db.delete(roastedCoffee).where(eq(roastedCoffee.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Packaging Materials
+  async getPackagingMaterials(): Promise<PackagingMaterial[]> {
+    return await db.select().from(packagingMaterials);
+  }
+
+  async getPackagingMaterial(id: string): Promise<PackagingMaterial | undefined> {
+    const [material] = await db.select().from(packagingMaterials).where(eq(packagingMaterials.id, id));
+    return material || undefined;
+  }
+
+  async createPackagingMaterial(material: InsertPackagingMaterial): Promise<PackagingMaterial> {
+    const [newMaterial] = await db
+      .insert(packagingMaterials)
+      .values({
+        ...material,
+        id: randomUUID(),
+        lastUpdated: new Date()
+      })
+      .returning();
+    return newMaterial;
+  }
+
+  async updatePackagingMaterial(id: string, updates: UpdatePackagingMaterial): Promise<PackagingMaterial | undefined> {
+    const [material] = await db
+      .update(packagingMaterials)
+      .set({
+        ...updates,
+        lastUpdated: new Date()
+      })
+      .where(eq(packagingMaterials.id, id))
+      .returning();
+    return material || undefined;
+  }
+
+  async deletePackagingMaterial(id: string): Promise<boolean> {
+    const result = await db.delete(packagingMaterials).where(eq(packagingMaterials.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Legacy user methods (unchanged)
+  async getUser(id: string): Promise<any> {
+    return null;
+  }
+
+  async getUserByUsername(username: string): Promise<any> {
+    return null;
+  }
+
+  async createUser(user: any): Promise<any> {
+    return null;
+  }
 }
 
 export class MemStorage implements IStorage {
@@ -259,4 +411,63 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Initialize database storage with default data
+async function initializeDatabaseStorage() {
+  const storage = new DatabaseStorage();
+  
+  // Check if packaging materials exist, if not, create defaults
+  const existingMaterials = await storage.getPackagingMaterials();
+  if (existingMaterials.length === 0) {
+    const defaultPackaging: InsertPackagingMaterial[] = [
+      {
+        name: "Coffee Bags - 250g",
+        type: "coffee_bag",
+        size: "250g",
+        description: "Kraft paper with valve",
+        currentStock: 0,
+        minStock: 50,
+      },
+      {
+        name: "Coffee Bags - 500g",
+        type: "coffee_bag",
+        size: "500g",
+        description: "Kraft paper with valve",
+        currentStock: 0,
+        minStock: 30,
+      },
+      {
+        name: "Post Bags - Small",
+        type: "post_bag",
+        size: "small",
+        description: "Padded mailers",
+        currentStock: 0,
+        minStock: 20,
+      },
+      {
+        name: "Post Bags - Medium",
+        type: "post_bag",
+        size: "medium",
+        description: "Padded mailers",
+        currentStock: 0,
+        minStock: 15,
+      },
+      {
+        name: "Post Bags - Large",
+        type: "post_bag",
+        size: "large",
+        description: "Padded mailers",
+        currentStock: 0,
+        minStock: 10,
+      },
+    ];
+
+    await Promise.all(defaultPackaging.map(item => storage.createPackagingMaterial(item)));
+  }
+  
+  return storage;
+}
+
+export const storage = new DatabaseStorage();
+
+// Initialize default data
+initializeDatabaseStorage().catch(console.error);

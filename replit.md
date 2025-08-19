@@ -23,7 +23,7 @@ Preferred communication style: Simple, everyday language.
 
 **Express.js REST API**: The server provides a RESTful API with CRUD operations for three main entities: green beans, roasted coffee, and packaging materials. The API includes request logging middleware and error handling.
 
-**Storage Layer**: Currently implements an in-memory storage solution with a defined interface (IStorage) that can be easily swapped for database implementations. The storage layer provides full CRUD operations for all inventory types.
+**Storage Layer**: Implements a PostgreSQL database storage solution using Drizzle ORM with a defined interface (IStorage). The database storage provides full CRUD operations for all inventory types with automatic stock deduction for roasted coffee production and data persistence across restarts.
 
 **Validation**: Request validation using Zod schemas shared between client and server, ensuring type safety across the application.
 
