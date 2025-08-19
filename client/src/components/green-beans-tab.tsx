@@ -32,6 +32,7 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const [showDeductModal, setShowDeductModal] = useState(false);
   const [deductFromBean, setDeductFromBean] = useState<GreenBean | null>(null);
   const [deductAmount, setDeductAmount] = useState<string>("");
+  const [lastDeductAmounts, setLastDeductAmounts] = useState<{[key: string]: string}>({});
   const { toast } = useToast();
 
   const { data: greenBeans = [], isLoading } = useQuery<GreenBean[]>({
@@ -163,7 +164,9 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
 
   const openDeductModal = (bean: GreenBean) => {
     setDeductFromBean(bean);
-    setDeductAmount("");
+    // Pre-fill with last used amount for this variety, or default to empty
+    const lastAmount = lastDeductAmounts[bean.variety] || "";
+    setDeductAmount(lastAmount);
     setShowDeductModal(true);
   };
 
@@ -172,6 +175,12 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
       const currentStock = parseFloat(deductFromBean.currentStock || "0");
       const deductValue = parseFloat(deductAmount);
       const newStock = Math.max(0, currentStock - deductValue);
+      
+      // Store the deduction amount for this variety
+      setLastDeductAmounts(prev => ({
+        ...prev,
+        [deductFromBean.variety]: deductAmount
+      }));
       
       updateStockMutation.mutate({ 
         id: deductFromBean.id, 
@@ -195,6 +204,28 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
     } else if (e.key === 'Escape') {
       cancelStockEdit();
     }
+  };
+
+  const quickDeduct = (bean: GreenBean) => {
+    const lastAmount = lastDeductAmounts[bean.variety];
+    if (!lastAmount) {
+      openDeductModal(bean);
+      return;
+    }
+
+    const currentStock = parseFloat(bean.currentStock || "0");
+    const deductValue = parseFloat(lastAmount);
+    const newStock = Math.max(0, currentStock - deductValue);
+    
+    updateStockMutation.mutate({ 
+      id: bean.id, 
+      currentStock: newStock.toString() 
+    });
+    
+    toast({ 
+      title: `Quick deducted ${deductValue.toFixed(1)}kg from ${bean.variety}`,
+      description: `New stock level: ${newStock.toFixed(1)}kg`
+    });
   };
 
   if (isLoading) {
@@ -351,12 +382,27 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openDeductModal(bean)}
-                          className="text-orange-600 hover:text-orange-900 p-1"
+                          onClick={(e) => {
+                            if (e.shiftKey && lastDeductAmounts[bean.variety]) {
+                              openDeductModal(bean);
+                            } else if (lastDeductAmounts[bean.variety]) {
+                              quickDeduct(bean);
+                            } else {
+                              openDeductModal(bean);
+                            }
+                          }}
+                          className="text-orange-600 hover:text-orange-900 px-2 py-1 flex items-center space-x-1"
                           data-testid={`button-deduct-${bean.id}`}
-                          title="Deduct batch"
+                          title={lastDeductAmounts[bean.variety] 
+                            ? `Click: Quick deduct ${formatDecimal(lastDeductAmounts[bean.variety])}kg | Shift+Click: Set new amount` 
+                            : "Deduct batch"}
                         >
                           <Minus className="h-3 w-3" />
+                          {lastDeductAmounts[bean.variety] && (
+                            <span className="text-xs">
+                              {formatDecimal(lastDeductAmounts[bean.variety])}
+                            </span>
+                          )}
                         </Button>
                       </div>
                     </TableCell>
