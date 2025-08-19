@@ -1,23 +1,26 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PackagingMaterial } from "@shared/schema";
 import AddItemModal from "./add-item-modal";
+import EditItemModal from "./edit-item-modal";
 
 interface PackagingTabProps {
   searchTerm: string;
 }
 
-type SortField = 'name' | 'size' | 'currentStock' | 'minStock';
+type SortField = 'name' | 'type' | 'size' | 'description' | 'currentStock' | 'minStock';
 type SortDirection = 'asc' | 'desc';
 
 export default function PackagingTab({ searchTerm }: PackagingTabProps) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<PackagingMaterial | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingStock, setEditingStock] = useState<string | null>(null);
@@ -37,6 +40,19 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     },
     onError: () => {
       toast({ title: "Failed to update stock", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/packaging-materials/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/packaging-materials"] });
+      toast({ title: "Packaging material deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete packaging material", variant: "destructive" });
     },
   });
 
@@ -63,9 +79,17 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
           aValue = a.name.toLowerCase();
           bValue = b.name.toLowerCase();
           break;
+        case 'type':
+          aValue = a.type.toLowerCase();
+          bValue = b.type.toLowerCase();
+          break;
         case 'size':
           aValue = a.size.toLowerCase();
           bValue = b.size.toLowerCase();
+          break;
+        case 'description':
+          aValue = (a.description || '').toLowerCase();
+          bValue = (b.description || '').toLowerCase();
           break;
         case 'currentStock':
           aValue = a.currentStock;
@@ -88,8 +112,7 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
       }
     });
 
-  const coffeeBags = sortedAndFilteredMaterials.filter(m => m.type === "coffee_bag");
-  const postBags = sortedAndFilteredMaterials.filter(m => m.type === "post_bag");
+  // Remove the separation by type - show all in one table
 
   const getStockStatus = (currentStock: number, minStock: number) => {
     if (currentStock === 0) {
@@ -131,44 +154,8 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     }
   };
 
-  const PackagingCard = ({ material }: { material: PackagingMaterial }) => {
-    const status = getStockStatus(material.currentStock, material.minStock);
-    
-    return (
-      <div className="bg-gray-50 rounded-lg p-4" data-testid={`card-packaging-${material.id}`}>
-        <div>
-          <h4 className="font-medium text-gray-900">{material.name}</h4>
-          <p className="text-sm text-gray-600">{material.description}</p>
-        </div>
-        <div className="mt-3 flex justify-between items-center">
-          <Badge variant={status.variant}>{status.label}</Badge>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Stock:</span>
-            {editingStock === material.id ? (
-              <Input
-                type="number"
-                min="0"
-                value={tempStockValue}
-                onChange={(e) => setTempStockValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={saveStockEdit}
-                className="w-20"
-                data-testid={`input-stock-${material.id}`}
-                autoFocus
-              />
-            ) : (
-              <span
-                className="min-w-[50px] text-right cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
-                onClick={() => startStockEdit(material.id, material.currentStock)}
-                data-testid={`text-stock-${material.id}`}
-              >
-                {material.currentStock}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+  const getTypeLabel = (type: string) => {
+    return type === 'coffee_bag' ? 'Coffee Bag' : 'Post Bag';
   };
 
   if (isLoading) {
@@ -189,40 +176,175 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Coffee Bags Section */}
-        <div>
-          <h3 className="text-md font-medium text-gray-900 mb-4">Coffee Bags</h3>
-          <div className="space-y-4">
-            {coffeeBags.length === 0 ? (
-              <p className="text-gray-500 text-sm">No coffee bags found.</p>
-            ) : (
-              coffeeBags.map((material) => (
-                <PackagingCard key={material.id} material={material} />
-              ))
-            )}
-          </div>
+      {sortedAndFilteredMaterials.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-500">No packaging materials found.</p>
         </div>
-
-        {/* Post Bags Section */}
-        <div>
-          <h3 className="text-md font-medium text-gray-900 mb-4">Post Bags</h3>
-          <div className="space-y-4">
-            {postBags.length === 0 ? (
-              <p className="text-gray-500 text-sm">No post bags found.</p>
-            ) : (
-              postBags.map((material) => (
-                <PackagingCard key={material.id} material={material} />
-              ))
-            )}
-          </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('name')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Name
+                    {sortField === 'name' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('type')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Type
+                    {sortField === 'type' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('size')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Size
+                    {sortField === 'size' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('description')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Description
+                    {sortField === 'description' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('currentStock')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Current Stock
+                    {sortField === 'currentStock' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('minStock')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Min. Stock
+                    {sortField === 'minStock' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedAndFilteredMaterials.map((material) => {
+                const status = getStockStatus(material.currentStock, material.minStock);
+                return (
+                  <TableRow key={material.id} className="hover:bg-gray-50" data-testid={`row-packaging-${material.id}`}>
+                    <TableCell>
+                      <div className="font-medium text-gray-900">{material.name}</div>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {getTypeLabel(material.type)}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">{material.size}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{material.description}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {editingStock === material.id ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            value={tempStockValue}
+                            onChange={(e) => setTempStockValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onBlur={saveStockEdit}
+                            className="w-20"
+                            data-testid={`input-stock-${material.id}`}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="min-w-[50px] text-right cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+                            onClick={() => startStockEdit(material.id, material.currentStock)}
+                            data-testid={`text-stock-${material.id}`}
+                          >
+                            {material.currentStock}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">{material.minStock}</TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingItem(material)}
+                          className="text-coffee-600 hover:text-coffee-900"
+                          data-testid={`button-edit-${material.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(material.id)}
+                          className="text-red-600 hover:text-red-900"
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${material.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
-      </div>
+      )}
 
       <AddItemModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
         itemType="packaging"
+      />
+
+      <EditItemModal
+        open={editingItem !== null}
+        onOpenChange={(open) => !open && setEditingItem(null)}
+        item={editingItem}
+        type="packaging"
       />
     </>
   );
