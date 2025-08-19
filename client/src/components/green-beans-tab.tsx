@@ -145,7 +145,9 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
 
   const startStockEdit = (id: string, currentValue: string) => {
     setEditingStock(id);
-    setTempStockValue(currentValue);
+    // Store the raw numeric value without extra decimal formatting
+    const numValue = parseFloat(currentValue);
+    setTempStockValue(isNaN(numValue) ? "0" : numValue.toString());
   };
 
   const saveStockEdit = () => {

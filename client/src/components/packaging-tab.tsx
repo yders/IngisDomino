@@ -20,6 +20,8 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [editingStock, setEditingStock] = useState<string | null>(null);
+  const [tempStockValue, setTempStockValue] = useState<string>("");
   const { toast } = useToast();
 
   const { data: packagingMaterials = [], isLoading } = useQuery<PackagingMaterial[]>({
@@ -102,9 +104,31 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     return { label: "Good Stock", variant: "default" as const };
   };
 
-  const handleStockChange = (id: string, value: string) => {
-    const newStock = Math.max(0, parseInt(value) || 0);
-    updateStockMutation.mutate({ id, currentStock: newStock });
+  const startStockEdit = (id: string, currentValue: number) => {
+    setEditingStock(id);
+    setTempStockValue(currentValue.toString());
+  };
+
+  const saveStockEdit = () => {
+    if (editingStock && tempStockValue !== "") {
+      const newStock = Math.max(0, parseInt(tempStockValue) || 0);
+      updateStockMutation.mutate({ id: editingStock, currentStock: newStock });
+    }
+    setEditingStock(null);
+    setTempStockValue("");
+  };
+
+  const cancelStockEdit = () => {
+    setEditingStock(null);
+    setTempStockValue("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveStockEdit();
+    } else if (e.key === 'Escape') {
+      cancelStockEdit();
+    }
   };
 
   const PackagingCard = ({ material }: { material: PackagingMaterial }) => {
@@ -120,14 +144,27 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
           <Badge variant={status.variant}>{status.label}</Badge>
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-600">Stock:</span>
-            <Input
-              type="number"
-              min="0"
-              value={material.currentStock}
-              onChange={(e) => handleStockChange(material.id, e.target.value)}
-              className="w-20"
-              data-testid={`input-stock-${material.id}`}
-            />
+            {editingStock === material.id ? (
+              <Input
+                type="number"
+                min="0"
+                value={tempStockValue}
+                onChange={(e) => setTempStockValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={saveStockEdit}
+                className="w-20"
+                data-testid={`input-stock-${material.id}`}
+                autoFocus
+              />
+            ) : (
+              <span
+                className="min-w-[50px] text-right cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+                onClick={() => startStockEdit(material.id, material.currentStock)}
+                data-testid={`text-stock-${material.id}`}
+              >
+                {material.currentStock}
+              </span>
+            )}
           </div>
         </div>
       </div>
