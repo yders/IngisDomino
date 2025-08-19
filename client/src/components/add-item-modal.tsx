@@ -25,7 +25,7 @@ import {
 interface AddItemModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultType?: "green-bean" | "roasted-coffee" | "packaging";
+  itemType: "green-bean" | "roasted-coffee" | "packaging";
 }
 
 const addItemSchema = z.discriminatedUnion("itemType", [
@@ -45,18 +45,17 @@ const addItemSchema = z.discriminatedUnion("itemType", [
 
 type AddItemForm = z.infer<typeof addItemSchema>;
 
-export default function AddItemModal({ open, onOpenChange, defaultType }: AddItemModalProps) {
+export default function AddItemModal({ open, onOpenChange, itemType }: AddItemModalProps) {
   const { toast } = useToast();
   
   const form = useForm<AddItemForm>({
     resolver: zodResolver(addItemSchema),
     defaultValues: {
-      itemType: defaultType || "green-bean",
+      itemType: itemType,
       roastDate: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+      location: "Origin", // Default location for green beans
     },
   });
-
-  const itemType = form.watch("itemType");
 
   // Fetch green beans for roasted coffee creation
   const { data: greenBeans = [] } = useQuery<GreenBean[]>({
@@ -102,7 +101,9 @@ export default function AddItemModal({ open, onOpenChange, defaultType }: AddIte
       <DialogContent className="w-96" data-testid="modal-add-item">
         <DialogHeader>
           <div className="flex justify-between items-center">
-            <DialogTitle>Add New Item</DialogTitle>
+            <DialogTitle>
+              Add New {itemType === "green-bean" ? "Green Bean" : itemType === "roasted-coffee" ? "Roasted Coffee" : "Packaging Material"}
+            </DialogTitle>
             <Button
               variant="ghost"
               size="sm"
@@ -115,23 +116,6 @@ export default function AddItemModal({ open, onOpenChange, defaultType }: AddIte
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <Label htmlFor="itemType">Item Type</Label>
-            <Select
-              value={itemType || undefined}
-              onValueChange={(value) => form.setValue("itemType", value as any)}
-            >
-              <SelectTrigger data-testid="select-item-type">
-                <SelectValue placeholder="Select item type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="green-bean">Green Bean</SelectItem>
-                <SelectItem value="roasted-coffee">Roasted Coffee</SelectItem>
-                <SelectItem value="packaging">Packaging Material</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {itemType === "green-bean" && (
             <>
               <div>
@@ -149,6 +133,23 @@ export default function AddItemModal({ open, onOpenChange, defaultType }: AddIte
                   placeholder="e.g., Ethiopia"
                   data-testid="input-origin"
                 />
+              </div>
+              <div>
+                <Label htmlFor="location">Location</Label>
+                <Select
+                  value={form.watch("location") || undefined}
+                  onValueChange={(value) => form.setValue("location", value)}
+                >
+                  <SelectTrigger data-testid="select-location">
+                    <SelectValue placeholder="Select location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Origin">Origin</SelectItem>
+                    <SelectItem value="On water">On water</SelectItem>
+                    <SelectItem value="Warehouse">Warehouse</SelectItem>
+                    <SelectItem value="Roastery">Roastery</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="currentStock">Initial Stock (kg)</Label>

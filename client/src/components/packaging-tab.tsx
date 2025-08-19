@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,13 @@ interface PackagingTabProps {
   searchTerm: string;
 }
 
+type SortField = 'name' | 'size' | 'currentStock' | 'minStock';
+type SortDirection = 'asc' | 'desc';
+
 export default function PackagingTab({ searchTerm }: PackagingTabProps) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const { toast } = useToast();
 
   const { data: packagingMaterials = [], isLoading } = useQuery<PackagingMaterial[]>({
@@ -33,12 +38,56 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     },
   });
 
-  const filteredMaterials = packagingMaterials.filter((material) => {
-    return material.name.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
-  const coffeeBags = filteredMaterials.filter(m => m.type === "coffee_bag");
-  const postBags = filteredMaterials.filter(m => m.type === "post_bag");
+  const sortedAndFilteredMaterials = packagingMaterials
+    .filter((material) => {
+      return material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             material.size.toLowerCase().includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'size':
+          aValue = a.size.toLowerCase();
+          bValue = b.size.toLowerCase();
+          break;
+        case 'currentStock':
+          aValue = a.currentStock;
+          bValue = b.currentStock;
+          break;
+        case 'minStock':
+          aValue = a.minStock;
+          bValue = b.minStock;
+          break;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return sortDirection === 'asc' 
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      }
+    });
+
+  const coffeeBags = sortedAndFilteredMaterials.filter(m => m.type === "coffee_bag");
+  const postBags = sortedAndFilteredMaterials.filter(m => m.type === "post_bag");
 
   const getStockStatus = (currentStock: number, minStock: number) => {
     if (currentStock === 0) {
@@ -136,7 +185,7 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
       <AddItemModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
-        defaultType="packaging"
+        itemType="packaging"
       />
     </>
   );

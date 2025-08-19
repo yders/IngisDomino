@@ -7,6 +7,7 @@ export const greenBeans = pgTable("green_beans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   variety: text("variety").notNull(),
   origin: text("origin").notNull(),
+  location: text("location").notNull().default('Origin'), // Origin, On water, Warehouse, Roastery
   currentStock: decimal("current_stock", { precision: 10, scale: 2 }).notNull().default('0'),
   minStock: decimal("min_stock", { precision: 10, scale: 2 }).notNull().default('0'),
   lastUpdated: timestamp("last_updated").notNull().default(sql`now()`),

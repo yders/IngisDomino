@@ -134,6 +134,23 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                 />
               </div>
               <div>
+                <Label htmlFor="location">Location</Label>
+                <Select
+                  value={form.watch("location") || "Origin"}
+                  onValueChange={(value) => form.setValue("location", value)}
+                >
+                  <SelectTrigger data-testid="select-location">
+                    <SelectValue placeholder="Select location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Origin">Origin</SelectItem>
+                    <SelectItem value="On water">On water</SelectItem>
+                    <SelectItem value="Warehouse">Warehouse</SelectItem>
+                    <SelectItem value="Roastery">Roastery</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="currentStock">Current Stock (kg)</Label>
                 <Input
                   type="number"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,9 +14,14 @@ interface RoastedCoffeeTabProps {
   searchTerm: string;
 }
 
+type SortField = 'variety' | 'roastDate' | 'greenBeanWeight';
+type SortDirection = 'asc' | 'desc';
+
 export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<RoastedCoffee | null>(null);
+  const [sortField, setSortField] = useState<SortField>('roastDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { toast } = useToast();
 
   const { data: roastedCoffee = [], isLoading } = useQuery<RoastedCoffee[]>({
@@ -40,9 +45,48 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
     },
   });
 
-  const filteredCoffee = roastedCoffee.filter((coffee) => {
-    return coffee.variety.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedAndFilteredCoffee = roastedCoffee
+    .filter((coffee) => {
+      return coffee.variety.toLowerCase().includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (sortField) {
+        case 'variety':
+          aValue = a.variety.toLowerCase();
+          bValue = b.variety.toLowerCase();
+          break;
+        case 'roastDate':
+          aValue = new Date(a.roastDate).getTime();
+          bValue = new Date(b.roastDate).getTime();
+          break;
+        case 'greenBeanWeight':
+          aValue = parseFloat(a.greenBeanWeight || "0");
+          bValue = parseFloat(b.greenBeanWeight || "0");
+          break;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return sortDirection === 'asc' 
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      }
+    });
 
   const getDaysSinceRoast = (roastDate: string) => {
     const today = new Date();
@@ -83,7 +127,7 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
         </div>
       </div>
 
-      {filteredCoffee.length === 0 ? (
+      {sortedAndFilteredCoffee.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500">No roasted coffee found.</p>
         </div>
@@ -92,16 +136,49 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Variety</TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('variety')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Variety
+                    {sortField === 'variety' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead>Green Bean Source</TableHead>
-                <TableHead>Green Bean Used (kg)</TableHead>
-                <TableHead>Roast Date</TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('greenBeanWeight')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Green Bean Used (kg)
+                    {sortField === 'greenBeanWeight' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('roastDate')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Roast Date
+                    {sortField === 'roastDate' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead>Days Since Roast</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCoffee.map((coffee) => {
+              {sortedAndFilteredCoffee.map((coffee) => {
                 const daysSinceRoast = getDaysSinceRoast(coffee.roastDate);
                 const daysLabel = getDaysLabel(daysSinceRoast);
                 return (
@@ -153,7 +230,7 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
       <AddItemModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
-        defaultType="roasted-coffee"
+        itemType="roasted-coffee"
       />
 
       <EditItemModal
