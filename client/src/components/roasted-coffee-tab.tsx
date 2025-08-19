@@ -189,7 +189,7 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
                     <TableCell className="text-sm text-gray-600">
                       {getGreenBeanInfo(coffee.greenBeanId)}
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600">{coffee.greenBeanWeight}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{parseFloat(coffee.greenBeanWeight || "0").toFixed(1)}</TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(coffee.roastDate).toLocaleDateString()}
                     </TableCell>

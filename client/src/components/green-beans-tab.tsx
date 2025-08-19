@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronUp, ChevronDown, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { GreenBean } from "@shared/schema";
@@ -25,6 +27,11 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>('variety');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [editingStock, setEditingStock] = useState<string | null>(null);
+  const [tempStockValue, setTempStockValue] = useState<string>("");
+  const [showDeductModal, setShowDeductModal] = useState(false);
+  const [deductFromBean, setDeductFromBean] = useState<GreenBean | null>(null);
+  const [deductAmount, setDeductAmount] = useState<string>("");
   const { toast } = useToast();
 
   const { data: greenBeans = [], isLoading } = useQuery<GreenBean[]>({
@@ -130,8 +137,64 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
     return { label: "Good Stock", variant: "default" as const };
   };
 
-  const handleStockChange = (id: string, value: string) => {
-    updateStockMutation.mutate({ id, currentStock: value });
+  const formatDecimal = (value: string | number): string => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return isNaN(num) ? '0.0' : num.toFixed(1);
+  };
+
+  const startStockEdit = (id: string, currentValue: string) => {
+    setEditingStock(id);
+    setTempStockValue(currentValue);
+  };
+
+  const saveStockEdit = () => {
+    if (editingStock && tempStockValue !== "") {
+      const newStock = Math.max(0, parseFloat(tempStockValue) || 0);
+      updateStockMutation.mutate({ id: editingStock, currentStock: newStock.toString() });
+    }
+    setEditingStock(null);
+    setTempStockValue("");
+  };
+
+  const cancelStockEdit = () => {
+    setEditingStock(null);
+    setTempStockValue("");
+  };
+
+  const openDeductModal = (bean: GreenBean) => {
+    setDeductFromBean(bean);
+    setDeductAmount("");
+    setShowDeductModal(true);
+  };
+
+  const handleDeduction = () => {
+    if (deductFromBean && deductAmount) {
+      const currentStock = parseFloat(deductFromBean.currentStock || "0");
+      const deductValue = parseFloat(deductAmount);
+      const newStock = Math.max(0, currentStock - deductValue);
+      
+      updateStockMutation.mutate({ 
+        id: deductFromBean.id, 
+        currentStock: newStock.toString() 
+      });
+      
+      setShowDeductModal(false);
+      setDeductFromBean(null);
+      setDeductAmount("");
+      
+      toast({ 
+        title: `Deducted ${deductValue.toFixed(1)}kg from ${deductFromBean.variety}`,
+        description: `New stock level: ${newStock.toFixed(1)}kg`
+      });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveStockEdit();
+    } else if (e.key === 'Escape') {
+      cancelStockEdit();
+    }
   };
 
   if (isLoading) {
@@ -263,16 +326,41 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                     <TableCell className="text-sm text-gray-600">{bean.origin}</TableCell>
                     <TableCell className="text-sm text-gray-600">{bean.location || "Origin"}</TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={bean.currentStock}
-                        onChange={(e) => handleStockChange(bean.id, e.target.value)}
-                        className="w-20"
-                        data-testid={`input-stock-${bean.id}`}
-                      />
+                      <div className="flex items-center space-x-2">
+                        {editingStock === bean.id ? (
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={tempStockValue}
+                            onChange={(e) => setTempStockValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onBlur={saveStockEdit}
+                            className="w-20"
+                            data-testid={`input-stock-${bean.id}`}
+                            autoFocus
+                          />
+                        ) : (
+                          <span 
+                            className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded min-w-[60px] text-center"
+                            onClick={() => startStockEdit(bean.id, bean.currentStock || "0")}
+                            data-testid={`text-stock-${bean.id}`}
+                          >
+                            {formatDecimal(bean.currentStock || "0")}
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openDeductModal(bean)}
+                          className="text-orange-600 hover:text-orange-900 p-1"
+                          data-testid={`button-deduct-${bean.id}`}
+                          title="Deduct batch"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600">{bean.minStock}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{formatDecimal(bean.minStock || "0")}</TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(bean.lastUpdated).toLocaleDateString()}
                     </TableCell>
@@ -322,6 +410,51 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
         item={editingItem}
         type="green-bean"
       />
+
+      {/* Deduction Modal */}
+      <Dialog open={showDeductModal} onOpenChange={setShowDeductModal}>
+        <DialogContent className="w-96">
+          <DialogHeader>
+            <DialogTitle>Deduct Batch from {deductFromBean?.variety}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="current-stock">Current Stock</Label>
+              <div className="text-lg font-medium text-gray-900">
+                {deductFromBean ? formatDecimal(deductFromBean.currentStock || "0") : "0.0"} kg
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="deduct-amount">Amount to Deduct (kg)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={deductAmount}
+                onChange={(e) => setDeductAmount(e.target.value)}
+                placeholder="Enter weight in kg"
+                data-testid="input-deduct-amount"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDeductModal(false)}
+                data-testid="button-cancel-deduct"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleDeduction}
+                disabled={!deductAmount || parseFloat(deductAmount) <= 0}
+                data-testid="button-confirm-deduct"
+              >
+                Deduct Batch
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
