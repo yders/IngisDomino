@@ -278,7 +278,7 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                     onClick={() => handleSort('variety')}
                     className="p-0 h-auto font-medium hover:bg-transparent"
                   >
-                    Name
+                    Variety
                     {sortField === 'variety' && (
                       sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
                     )}

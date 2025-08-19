@@ -245,7 +245,18 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
                     )}
                   </Button>
                 </TableHead>
-
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('minStock')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    Min. Stock
+                    {sortField === 'minStock' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -288,6 +299,7 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell className="text-sm text-gray-600">{material.minStock}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </TableCell>
