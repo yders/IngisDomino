@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, date, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -9,7 +9,8 @@ export const greenBeans = pgTable("green_beans", {
   origin: text("origin").notNull(),
   location: text("location").notNull().default('Origin'), // Origin, On water, Warehouse, Roastery
   currentStock: decimal("current_stock", { precision: 10, scale: 2 }).notNull().default('0'),
-  minStock: decimal("min_stock", { precision: 10, scale: 2 }).notNull().default('0'),
+  bagLabels: integer("bag_labels").notNull().default(0),
+  inWebshop: boolean("in_webshop").notNull().default(false),
   lastUpdated: timestamp("last_updated").notNull().default(sql`now()`),
 });
 

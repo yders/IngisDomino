@@ -18,7 +18,7 @@ interface GreenBeansTabProps {
   searchTerm: string;
 }
 
-type SortField = 'variety' | 'origin' | 'location' | 'currentStock' | 'minStock' | 'lastUpdated';
+type SortField = 'variety' | 'origin' | 'location' | 'currentStock' | 'bagLabels' | 'inWebshop' | 'lastUpdated';
 type SortDirection = 'asc' | 'desc';
 
 export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
@@ -29,6 +29,8 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [tempStockValue, setTempStockValue] = useState<string>("");
+  const [editingBagLabels, setEditingBagLabels] = useState<string | null>(null);
+  const [tempBagLabelsValue, setTempBagLabelsValue] = useState<string>("");
   const [showDeductModal, setShowDeductModal] = useState(false);
   const [deductFromBean, setDeductFromBean] = useState<GreenBean | null>(null);
   const [deductAmount, setDeductAmount] = useState<string>("");
@@ -61,6 +63,30 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
     },
     onError: () => {
       toast({ title: "Failed to update stock", variant: "destructive" });
+    },
+  });
+
+  const updateBagLabelsMutation = useMutation({
+    mutationFn: async ({ id, bagLabels }: { id: string; bagLabels: number }) => {
+      await apiRequest("PUT", `/api/green-beans/${id}`, { bagLabels });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/green-beans"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update bag labels", variant: "destructive" });
+    },
+  });
+
+  const updateWebshopMutation = useMutation({
+    mutationFn: async ({ id, inWebshop }: { id: string; inWebshop: boolean }) => {
+      await apiRequest("PUT", `/api/green-beans/${id}`, { inWebshop });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/green-beans"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update webshop status", variant: "destructive" });
     },
   });
 
@@ -105,9 +131,13 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
           aValue = parseFloat(a.currentStock || "0");
           bValue = parseFloat(b.currentStock || "0");
           break;
-        case 'minStock':
-          aValue = parseFloat(a.minStock || "0");
-          bValue = parseFloat(b.minStock || "0");
+        case 'bagLabels':
+          aValue = a.bagLabels || 0;
+          bValue = b.bagLabels || 0;
+          break;
+        case 'inWebshop':
+          aValue = a.inWebshop ? 1 : 0;
+          bValue = b.inWebshop ? 1 : 0;
           break;
         case 'lastUpdated':
           aValue = new Date(a.lastUpdated).getTime();
@@ -128,11 +158,11 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
 
   const uniqueOrigins = Array.from(new Set(greenBeans.map(bean => bean.origin).filter(origin => origin && origin.trim() !== '')));
 
-  const getStockStatus = (currentStock: string, minStock: string) => {
+  const getStockStatus = (currentStock: string) => {
     const current = parseFloat(currentStock);
-    const min = parseFloat(minStock);
     
-    if (current <= min) {
+    // Use a simple threshold for low stock warning
+    if (current <= 5) {
       return { label: "Low Stock", variant: "destructive" as const };
     }
     return { label: "Good Stock", variant: "default" as const };
@@ -162,6 +192,25 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const cancelStockEdit = () => {
     setEditingStock(null);
     setTempStockValue("");
+  };
+
+  const startBagLabelsEdit = (id: string, currentValue: number) => {
+    setEditingBagLabels(id);
+    setTempBagLabelsValue(currentValue.toString());
+  };
+
+  const saveBagLabelsEdit = () => {
+    if (editingBagLabels && tempBagLabelsValue !== "") {
+      const newBagLabels = Math.max(0, parseInt(tempBagLabelsValue) || 0);
+      updateBagLabelsMutation.mutate({ id: editingBagLabels, bagLabels: newBagLabels });
+    }
+    setEditingBagLabels(null);
+    setTempBagLabelsValue("");
+  };
+
+  const cancelBagLabelsEdit = () => {
+    setEditingBagLabels(null);
+    setTempBagLabelsValue("");
   };
 
   const openDeductModal = (bean: GreenBean) => {
@@ -205,6 +254,14 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
       saveStockEdit();
     } else if (e.key === 'Escape') {
       cancelStockEdit();
+    }
+  };
+
+  const handleBagLabelsKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveBagLabelsEdit();
+    } else if (e.key === 'Escape') {
+      cancelBagLabelsEdit();
     }
   };
 
@@ -323,11 +380,23 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                 <TableHead>
                   <Button 
                     variant="ghost" 
-                    onClick={() => handleSort('minStock')}
+                    onClick={() => handleSort('bagLabels')}
                     className="p-0 h-auto font-medium hover:bg-transparent"
                   >
-                    Min. Stock
-                    {sortField === 'minStock' && (
+                    Bag Labels
+                    {sortField === 'bagLabels' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleSort('inWebshop')}
+                    className="p-0 h-auto font-medium hover:bg-transparent"
+                  >
+                    In Webshop
+                    {sortField === 'inWebshop' && (
                       sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
                     )}
                   </Button>
@@ -350,7 +419,7 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
             </TableHeader>
             <TableBody>
               {sortedAndFilteredBeans.map((bean) => {
-                const status = getStockStatus(bean.currentStock || "0", bean.minStock || "0");
+                const status = getStockStatus(bean.currentStock || "0");
                 return (
                   <TableRow key={bean.id} className="hover:bg-gray-50" data-testid={`row-green-bean-${bean.id}`}>
                     <TableCell>
@@ -408,7 +477,43 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600">{formatDecimal(bean.minStock || "0")}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {editingBagLabels === bean.id ? (
+                          <Input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={tempBagLabelsValue}
+                            onChange={(e) => setTempBagLabelsValue(e.target.value)}
+                            onKeyDown={handleBagLabelsKeyDown}
+                            onBlur={saveBagLabelsEdit}
+                            className="w-20"
+                            data-testid={`input-bag-labels-${bean.id}`}
+                            autoFocus
+                          />
+                        ) : (
+                          <span 
+                            className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded min-w-[40px] text-center"
+                            onClick={() => startBagLabelsEdit(bean.id, bean.bagLabels || 0)}
+                            data-testid={`text-bag-labels-${bean.id}`}
+                          >
+                            {bean.bagLabels || 0}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant={bean.inWebshop ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => updateWebshopMutation.mutate({ id: bean.id, inWebshop: !bean.inWebshop })}
+                        className={bean.inWebshop ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                        data-testid={`button-webshop-${bean.id}`}
+                      >
+                        {bean.inWebshop ? "Yes" : "No"}
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(bean.lastUpdated).toLocaleDateString()}
                     </TableCell>

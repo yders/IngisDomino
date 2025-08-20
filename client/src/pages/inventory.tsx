@@ -51,17 +51,6 @@ export default function Inventory() {
                 <Search className="absolute left-3 top-3 text-gray-400 h-4 w-4" />
               </div>
               <Button
-                className="bg-coffee-500 text-white hover:bg-coffee-600"
-                onClick={() => {
-                  setItemType("green-bean");
-                  setShowAddModal(true);
-                }}
-                data-testid="button-add-item"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Item
-              </Button>
-              <Button
                 className="bg-green-600 text-white hover:bg-green-700"
                 onClick={handleExport}
                 data-testid="button-export"
