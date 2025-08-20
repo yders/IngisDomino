@@ -9,6 +9,7 @@ import AddItemModal from "@/components/add-item-modal";
 export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [itemType, setItemType] = useState<"green-bean" | "roasted-coffee" | "packaging">("green-bean");
 
   const handleExport = async () => {
     try {
@@ -51,7 +52,10 @@ export default function Inventory() {
               </div>
               <Button
                 className="bg-coffee-500 text-white hover:bg-coffee-600"
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setItemType("green-bean");
+                  setShowAddModal(true);
+                }}
                 data-testid="button-add-item"
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -78,6 +82,7 @@ export default function Inventory() {
       <AddItemModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
+        itemType={itemType}
       />
     </div>
   );
