@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { GreenBean } from "@shared/schema";
@@ -35,6 +36,8 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const [deductFromBean, setDeductFromBean] = useState<GreenBean | null>(null);
   const [deductAmount, setDeductAmount] = useState<string>("");
   const [lastDeductAmounts, setLastDeductAmounts] = useState<{[key: string]: string}>({});
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<GreenBean | null>(null);
   const { toast } = useToast();
 
   const { data: greenBeans = [], isLoading } = useQuery<GreenBean[]>({
@@ -211,6 +214,14 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
   const cancelBagLabelsEdit = () => {
     setEditingBagLabels(null);
     setTempBagLabelsValue("");
+  };
+
+  const handleConfirmDelete = () => {
+    if (itemToDelete) {
+      deleteMutation.mutate(itemToDelete.id);
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
+    }
   };
 
   const openDeductModal = (bean: GreenBean) => {
@@ -534,7 +545,10 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteMutation.mutate(bean.id)}
+                          onClick={() => {
+                            setItemToDelete(bean);
+                            setDeleteConfirmOpen(true);
+                          }}
                           className="text-red-600 hover:text-red-900"
                           disabled={deleteMutation.isPending}
                           data-testid={`button-delete-${bean.id}`}
@@ -608,6 +622,29 @@ export default function GreenBeansTab({ searchTerm }: GreenBeansTabProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Green Bean</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{itemToDelete?.variety}" from {itemToDelete?.origin}? 
+              This action cannot be undone and will permanently remove all data for this green bean.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

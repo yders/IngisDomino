@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PackagingMaterial } from "@shared/schema";
@@ -25,6 +26,8 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [tempStockValue, setTempStockValue] = useState<string>("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<PackagingMaterial | null>(null);
   const { toast } = useToast();
 
   const { data: packagingMaterials = [], isLoading } = useQuery<PackagingMaterial[]>({
@@ -62,6 +65,14 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
     } else {
       setSortField(field);
       setSortDirection('asc');
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (itemToDelete) {
+      deleteMutation.mutate(itemToDelete.id);
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -317,7 +328,10 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteMutation.mutate(material.id)}
+                          onClick={() => {
+                            setItemToDelete(material);
+                            setDeleteConfirmOpen(true);
+                          }}
                           className="text-red-600 hover:text-red-900"
                           disabled={deleteMutation.isPending}
                           data-testid={`button-delete-${material.id}`}
@@ -346,6 +360,29 @@ export default function PackagingTab({ searchTerm }: PackagingTabProps) {
         item={editingItem}
         type="packaging"
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Packaging Material</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{itemToDelete?.name}" ({itemToDelete?.size})? 
+              This action cannot be undone and will permanently remove all data for this packaging material.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

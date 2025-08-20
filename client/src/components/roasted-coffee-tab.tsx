@@ -4,6 +4,7 @@ import { Plus, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { RoastedCoffee, GreenBean } from "@shared/schema";
@@ -22,6 +23,8 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
   const [editingItem, setEditingItem] = useState<RoastedCoffee | null>(null);
   const [sortField, setSortField] = useState<SortField>('roastDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<RoastedCoffee | null>(null);
   const { toast } = useToast();
 
   const { data: roastedCoffee = [], isLoading } = useQuery<RoastedCoffee[]>({
@@ -51,6 +54,14 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
     } else {
       setSortField(field);
       setSortDirection('asc');
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (itemToDelete) {
+      deleteMutation.mutate(itemToDelete.id);
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -210,7 +221,10 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteMutation.mutate(coffee.id)}
+                          onClick={() => {
+                            setItemToDelete(coffee);
+                            setDeleteConfirmOpen(true);
+                          }}
                           className="text-red-600 hover:text-red-900"
                           disabled={deleteMutation.isPending}
                           data-testid={`button-delete-${coffee.id}`}
@@ -239,6 +253,29 @@ export default function RoastedCoffeeTab({ searchTerm }: RoastedCoffeeTabProps) 
         item={editingItem}
         type="roasted-coffee"
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Roasted Coffee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the roasted "{itemToDelete?.variety}" from {new Date(itemToDelete?.roastDate || '').toLocaleDateString()}? 
+              This action cannot be undone and will permanently remove all data for this roasted coffee batch.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
