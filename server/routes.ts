@@ -62,6 +62,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Green Bean Change Logs Route
+  app.get("/api/green-beans/:id/change-logs", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const changeLogs = await storage.getGreenBeanChangeLogs(id);
+      res.json(changeLogs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch change logs" });
+    }
+  });
+
   // Roasted Coffee Routes
   app.get("/api/roasted-coffee", async (req, res) => {
     try {

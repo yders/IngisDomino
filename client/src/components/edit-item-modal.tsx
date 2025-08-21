@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -23,6 +25,7 @@ import {
   type GreenBean,
   type RoastedCoffee,
   type PackagingMaterial,
+  type GreenBeanChangeLog,
 } from "@shared/schema";
 
 interface EditItemModalProps {
@@ -57,6 +60,12 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
   const { data: greenBeans = [] } = useQuery<GreenBean[]>({
     queryKey: ["/api/green-beans"],
     enabled: type === "roasted-coffee" && open,
+  });
+
+  // Fetch change logs for green beans
+  const { data: changeLogs = [] } = useQuery<GreenBeanChangeLog[]>({
+    queryKey: ["/api/green-beans", item?.id, "change-logs"],
+    enabled: type === "green-bean" && open && !!item?.id,
   });
 
   useEffect(() => {
@@ -314,6 +323,41 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
             </Button>
           </div>
         </form>
+        
+        {/* Change History for Green Beans */}
+        {type === "green-bean" && changeLogs.length > 0 && (
+          <div className="mt-6">
+            <Separator className="mb-4" />
+            <h3 className="text-lg font-semibold mb-3">Change History</h3>
+            <ScrollArea className="h-64 w-full border rounded-md p-3">
+              <div className="space-y-2">
+                {changeLogs.map((log) => (
+                  <div key={log.id} className="flex justify-between items-start p-2 bg-secondary/30 rounded text-sm">
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {log.field === 'currentStock' ? 'Stock Updated' : 
+                         log.field === 'variety' ? 'Variety Changed' :
+                         log.field === 'origin' ? 'Origin Changed' :
+                         log.field === 'location' ? 'Location Changed' :
+                         log.field === 'bagLabels' ? 'Bag Labels Updated' :
+                         log.field === 'inWebshop' ? 'Webshop Status Changed' :
+                         `${log.field} updated`}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {log.oldValue} → {log.newValue}
+                        {log.amount && ` (${log.amount}kg)`}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground text-right">
+                      <div>{new Date(log.timestamp).toLocaleDateString()}</div>
+                      <div>{new Date(log.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

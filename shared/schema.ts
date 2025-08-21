@@ -33,6 +33,17 @@ export const packagingMaterials = pgTable("packaging_materials", {
   lastUpdated: timestamp("last_updated").notNull().default(sql`now()`),
 });
 
+export const greenBeanChangeLogs = pgTable("green_bean_change_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  greenBeanId: varchar("green_bean_id").notNull(),
+  changeType: text("change_type").notNull(), // 'create', 'update', 'stock_deduction'
+  field: text("field"), // Field that was changed (null for create/stock_deduction)
+  oldValue: text("old_value"), // Previous value (null for create)
+  newValue: text("new_value"), // New value
+  amount: decimal("amount", { precision: 10, scale: 2 }), // For stock changes
+  timestamp: timestamp("timestamp").notNull().default(sql`now()`),
+});
+
 export const insertGreenBeanSchema = createInsertSchema(greenBeans).omit({
   id: true,
   lastUpdated: true,
@@ -72,3 +83,11 @@ export type UpdateRoastedCoffee = z.infer<typeof updateRoastedCoffeeSchema>;
 export type PackagingMaterial = typeof packagingMaterials.$inferSelect;
 export type InsertPackagingMaterial = z.infer<typeof insertPackagingMaterialSchema>;
 export type UpdatePackagingMaterial = z.infer<typeof updatePackagingMaterialSchema>;
+
+export const insertGreenBeanChangeLogSchema = createInsertSchema(greenBeanChangeLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export type GreenBeanChangeLog = typeof greenBeanChangeLogs.$inferSelect;
+export type InsertGreenBeanChangeLog = z.infer<typeof insertGreenBeanChangeLogSchema>;

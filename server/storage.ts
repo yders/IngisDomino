@@ -8,9 +8,12 @@ import {
   type PackagingMaterial,
   type InsertPackagingMaterial,
   type UpdatePackagingMaterial,
+  type GreenBeanChangeLog,
+  type InsertGreenBeanChangeLog,
   greenBeans,
   roastedCoffee,
-  packagingMaterials
+  packagingMaterials,
+  greenBeanChangeLogs
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -37,6 +40,10 @@ export interface IStorage {
   createPackagingMaterial(packagingMaterial: InsertPackagingMaterial): Promise<PackagingMaterial>;
   updatePackagingMaterial(id: string, updates: UpdatePackagingMaterial): Promise<PackagingMaterial | undefined>;
   deletePackagingMaterial(id: string): Promise<boolean>;
+
+  // Change Logs
+  getGreenBeanChangeLogs(greenBeanId: string): Promise<GreenBeanChangeLog[]>;
+  createGreenBeanChangeLog(changeLog: InsertGreenBeanChangeLog): Promise<GreenBeanChangeLog>;
 
   // Legacy user methods
   getUser(id: string): Promise<any>;
@@ -68,6 +75,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGreenBean(id: string, updates: UpdateGreenBean): Promise<GreenBean | undefined> {
+    // First get the current bean to track changes
+    const currentBean = await this.getGreenBean(id);
+    if (!currentBean) return undefined;
+
     const [bean] = await db
       .update(greenBeans)
       .set({
@@ -76,6 +87,23 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(greenBeans.id, id))
       .returning();
+
+    // Log the changes
+    if (bean) {
+      for (const [key, newValue] of Object.entries(updates)) {
+        if (key !== 'lastUpdated' && currentBean[key as keyof GreenBean] !== newValue) {
+          await this.createGreenBeanChangeLog({
+            greenBeanId: id,
+            changeType: 'update',
+            field: key,
+            oldValue: String(currentBean[key as keyof GreenBean] || ''),
+            newValue: String(newValue || ''),
+            amount: key === 'currentStock' ? newValue as any : null
+          });
+        }
+      }
+    }
+
     return bean || undefined;
   }
 
@@ -177,6 +205,24 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
+  // Change Logs
+  async getGreenBeanChangeLogs(greenBeanId: string): Promise<GreenBeanChangeLog[]> {
+    return await db.select().from(greenBeanChangeLogs)
+      .where(eq(greenBeanChangeLogs.greenBeanId, greenBeanId))
+      .orderBy(greenBeanChangeLogs.timestamp);
+  }
+
+  async createGreenBeanChangeLog(changeLog: InsertGreenBeanChangeLog): Promise<GreenBeanChangeLog> {
+    const [log] = await db
+      .insert(greenBeanChangeLogs)
+      .values({
+        ...changeLog,
+        id: randomUUID(),
+      })
+      .returning();
+    return log;
+  }
+
   // Legacy user methods (unchanged)
   async getUser(id: string): Promise<any> {
     return null;
@@ -271,7 +317,9 @@ export class MemStorage implements IStorage {
       ...insertGreenBean,
       id,
       currentStock: insertGreenBean.currentStock || "0",
-      minStock: insertGreenBean.minStock || "0",
+      location: insertGreenBean.location || "Origin",
+      bagLabels: insertGreenBean.bagLabels || 0,
+      inWebshop: insertGreenBean.inWebshop || false,
       lastUpdated: new Date(),
     };
     this.greenBeans.set(id, greenBean);
@@ -390,6 +438,23 @@ export class MemStorage implements IStorage {
 
   async deletePackagingMaterial(id: string): Promise<boolean> {
     return this.packagingMaterials.delete(id);
+  }
+
+  // Change Logs (in-memory stub implementation)
+  async getGreenBeanChangeLogs(greenBeanId: string): Promise<GreenBeanChangeLog[]> {
+    // For MemStorage, we could maintain logs in memory if needed
+    // For now, return empty array
+    return [];
+  }
+
+  async createGreenBeanChangeLog(changeLog: InsertGreenBeanChangeLog): Promise<GreenBeanChangeLog> {
+    const log: GreenBeanChangeLog = {
+      ...changeLog,
+      id: randomUUID(),
+      timestamp: new Date(),
+    };
+    // For MemStorage, we could store these if needed
+    return log;
   }
 
   // Legacy user methods
