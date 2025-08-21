@@ -278,7 +278,9 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
                          `${log.field} updated`}
                       </div>
                       <div className="text-muted-foreground">
-                        {log.oldValue} → {log.newValue}
+                        {log.field === 'inWebshop' 
+                          ? `${log.oldValue === 'true' ? 'yes' : 'no'} → ${log.newValue === 'true' ? 'yes' : 'no'}`
+                          : `${log.oldValue || 'empty'} → ${log.newValue || 'empty'}`}
                         {log.amount && ` (${log.amount}kg)`}
                       </div>
                     </div>

@@ -5,6 +5,7 @@ This is a full-stack coffee roastery inventory management application built with
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
+Change log display preferences: Show "yes → no" instead of "true → false" for boolean values, and ensure all value changes show both old and new values clearly.
 
 # System Architecture
 
