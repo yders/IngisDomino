@@ -2,16 +2,12 @@ import {
   type GreenBean, 
   type InsertGreenBean, 
   type UpdateGreenBean,
-  type RoastedCoffee,
-  type InsertRoastedCoffee,
-  type UpdateRoastedCoffee,
   type PackagingMaterial,
   type InsertPackagingMaterial,
   type UpdatePackagingMaterial,
   type GreenBeanChangeLog,
   type InsertGreenBeanChangeLog,
   greenBeans,
-  roastedCoffee,
   packagingMaterials,
   greenBeanChangeLogs
 } from "@shared/schema";
@@ -27,12 +23,7 @@ export interface IStorage {
   updateGreenBean(id: string, updates: UpdateGreenBean): Promise<GreenBean | undefined>;
   deleteGreenBean(id: string): Promise<boolean>;
 
-  // Roasted Coffee
-  getRoastedCoffee(): Promise<RoastedCoffee[]>;
-  getRoastedCoffeeItem(id: string): Promise<RoastedCoffee | undefined>;
-  createRoastedCoffee(roastedCoffee: InsertRoastedCoffee): Promise<RoastedCoffee>;
-  updateRoastedCoffee(id: string, updates: UpdateRoastedCoffee): Promise<RoastedCoffee | undefined>;
-  deleteRoastedCoffee(id: string): Promise<boolean>;
+
 
   // Packaging Materials
   getPackagingMaterials(): Promise<PackagingMaterial[]>;
@@ -112,59 +103,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
-  // Roasted Coffee
-  async getRoastedCoffee(): Promise<RoastedCoffee[]> {
-    return await db.select().from(roastedCoffee);
-  }
 
-  async getRoastedCoffeeItem(id: string): Promise<RoastedCoffee | undefined> {
-    const [coffee] = await db.select().from(roastedCoffee).where(eq(roastedCoffee.id, id));
-    return coffee || undefined;
-  }
-
-  async createRoastedCoffee(insertRoastedCoffee: InsertRoastedCoffee): Promise<RoastedCoffee> {
-    // First check if green bean exists and has sufficient stock
-    const greenBean = await this.getGreenBean(insertRoastedCoffee.greenBeanId);
-    if (!greenBean) {
-      throw new Error("Green bean not found");
-    }
-    
-    const currentStock = parseFloat(greenBean.currentStock);
-    const usedWeight = parseFloat(insertRoastedCoffee.greenBeanWeight);
-    
-    if (currentStock < usedWeight) {
-      throw new Error("Insufficient green bean stock");
-    }
-    
-    // Update green bean stock
-    await this.updateGreenBean(insertRoastedCoffee.greenBeanId, {
-      currentStock: (currentStock - usedWeight).toString()
-    });
-    
-    // Create roasted coffee entry
-    const [newCoffee] = await db
-      .insert(roastedCoffee)
-      .values({
-        ...insertRoastedCoffee,
-        id: randomUUID()
-      })
-      .returning();
-    return newCoffee;
-  }
-
-  async updateRoastedCoffee(id: string, updates: UpdateRoastedCoffee): Promise<RoastedCoffee | undefined> {
-    const [coffee] = await db
-      .update(roastedCoffee)
-      .set(updates)
-      .where(eq(roastedCoffee.id, id))
-      .returning();
-    return coffee || undefined;
-  }
-
-  async deleteRoastedCoffee(id: string): Promise<boolean> {
-    const result = await db.delete(roastedCoffee).where(eq(roastedCoffee.id, id));
-    return (result.rowCount ?? 0) > 0;
-  }
 
   // Packaging Materials
   async getPackagingMaterials(): Promise<PackagingMaterial[]> {
@@ -239,13 +178,11 @@ export class DatabaseStorage implements IStorage {
 
 export class MemStorage implements IStorage {
   private greenBeans: Map<string, GreenBean>;
-  private roastedCoffee: Map<string, RoastedCoffee>;
   private packagingMaterials: Map<string, PackagingMaterial>;
   private users: Map<string, any>;
 
   constructor() {
     this.greenBeans = new Map();
-    this.roastedCoffee = new Map();
     this.packagingMaterials = new Map();
     this.users = new Map();
 
@@ -343,62 +280,7 @@ export class MemStorage implements IStorage {
     return this.greenBeans.delete(id);
   }
 
-  // Roasted Coffee
-  async getRoastedCoffee(): Promise<RoastedCoffee[]> {
-    return Array.from(this.roastedCoffee.values());
-  }
 
-  async getRoastedCoffeeItem(id: string): Promise<RoastedCoffee | undefined> {
-    return this.roastedCoffee.get(id);
-  }
-
-  async createRoastedCoffee(insertRoastedCoffee: InsertRoastedCoffee): Promise<RoastedCoffee> {
-    const id = randomUUID();
-    
-    // Deduct green bean stock
-    const greenBean = this.greenBeans.get(insertRoastedCoffee.greenBeanId);
-    if (!greenBean) {
-      throw new Error("Green bean not found");
-    }
-    
-    const currentStock = parseFloat(greenBean.currentStock);
-    const usedWeight = parseFloat(insertRoastedCoffee.greenBeanWeight);
-    
-    if (currentStock < usedWeight) {
-      throw new Error("Insufficient green bean stock");
-    }
-    
-    // Update green bean stock
-    const updatedGreenBean: GreenBean = {
-      ...greenBean,
-      currentStock: (currentStock - usedWeight).toString(),
-      lastUpdated: new Date(),
-    };
-    this.greenBeans.set(insertRoastedCoffee.greenBeanId, updatedGreenBean);
-    
-    const roastedCoffeeItem: RoastedCoffee = {
-      ...insertRoastedCoffee,
-      id,
-    };
-    this.roastedCoffee.set(id, roastedCoffeeItem);
-    return roastedCoffeeItem;
-  }
-
-  async updateRoastedCoffee(id: string, updates: UpdateRoastedCoffee): Promise<RoastedCoffee | undefined> {
-    const existing = this.roastedCoffee.get(id);
-    if (!existing) return undefined;
-
-    const updated: RoastedCoffee = {
-      ...existing,
-      ...updates,
-    };
-    this.roastedCoffee.set(id, updated);
-    return updated;
-  }
-
-  async deleteRoastedCoffee(id: string): Promise<boolean> {
-    return this.roastedCoffee.delete(id);
-  }
 
   // Packaging Materials
   async getPackagingMaterials(): Promise<PackagingMaterial[]> {
@@ -451,6 +333,10 @@ export class MemStorage implements IStorage {
     const log: GreenBeanChangeLog = {
       ...changeLog,
       id: randomUUID(),
+      field: changeLog.field || null,
+      oldValue: changeLog.oldValue || null,
+      newValue: changeLog.newValue || null,
+      amount: changeLog.amount || null,
       timestamp: new Date(),
     };
     // For MemStorage, we could store these if needed

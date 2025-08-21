@@ -20,10 +20,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   updateGreenBeanSchema,
-  updateRoastedCoffeeSchema,
   updatePackagingMaterialSchema,
   type GreenBean,
-  type RoastedCoffee,
   type PackagingMaterial,
   type GreenBeanChangeLog,
 } from "@shared/schema";
@@ -31,8 +29,8 @@ import {
 interface EditItemModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  item: GreenBean | RoastedCoffee | PackagingMaterial | null;
-  type: "green-bean" | "roasted-coffee" | "packaging";
+  item: GreenBean | PackagingMaterial | null;
+  type: "green-bean" | "packaging";
 }
 
 export default function EditItemModal({ open, onOpenChange, item, type }: EditItemModalProps) {
@@ -42,8 +40,6 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
     switch (type) {
       case "green-bean":
         return updateGreenBeanSchema;
-      case "roasted-coffee":
-        return updateRoastedCoffeeSchema;
       case "packaging":
         return updatePackagingMaterialSchema;
       default:
@@ -56,11 +52,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
     defaultValues: {},
   });
 
-  // Fetch green beans for roasted coffee editing
-  const { data: greenBeans = [] } = useQuery<GreenBean[]>({
-    queryKey: ["/api/green-beans"],
-    enabled: type === "roasted-coffee" && open,
-  });
+
 
   // Fetch change logs for green beans
   const { data: changeLogs = [] } = useQuery<GreenBeanChangeLog[]>({
@@ -82,9 +74,6 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
         case "green-bean":
           await apiRequest("PUT", `/api/green-beans/${item.id}`, data);
           break;
-        case "roasted-coffee":
-          await apiRequest("PUT", `/api/roasted-coffee/${item.id}`, data);
-          break;
         case "packaging":
           await apiRequest("PUT", `/api/packaging-materials/${item.id}`, data);
           break;
@@ -92,7 +81,6 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/green-beans"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/roasted-coffee"] });
       queryClient.invalidateQueries({ queryKey: ["/api/packaging-materials"] });
       toast({ title: "Item updated successfully" });
       onOpenChange(false);
@@ -180,61 +168,7 @@ export default function EditItemModal({ open, onOpenChange, item, type }: EditIt
             </>
           )}
 
-          {type === "roasted-coffee" && (
-            <>
-              <div>
-                <Label htmlFor="greenBeanId">Green Bean Used</Label>
-                <Select
-                  value={form.watch("greenBeanId") || undefined}
-                  onValueChange={(value) => {
-                    const selectedBean = greenBeans.find(bean => bean.id === value);
-                    if (selectedBean) {
-                      form.setValue("greenBeanId", value);
-                      form.setValue("variety", selectedBean.variety);
-                    }
-                  }}
-                >
-                  <SelectTrigger data-testid="select-green-bean">
-                    <SelectValue placeholder="Select green bean..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {greenBeans.map((bean) => (
-                      <SelectItem key={bean.id} value={bean.id || "invalid"}>
-                        {bean.variety} {bean.origin ? `(${bean.origin})` : ''} - {bean.currentStock}kg available
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="greenBeanWeight">Green Bean Weight Used (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  {...form.register("greenBeanWeight")}
-                  data-testid="input-green-bean-weight"
-                />
-              </div>
-              <div>
-                <Label htmlFor="variety">Variety (Auto-filled)</Label>
-                <Input
-                  {...form.register("variety")}
-                  readOnly
-                  className="bg-gray-50"
-                  data-testid="input-variety"
-                />
-              </div>
-              <div>
-                <Label htmlFor="roastDate">Roast Date</Label>
-                <Input
-                  type="date"
-                  {...form.register("roastDate")}
-                  data-testid="input-roast-date"
-                />
-              </div>
 
-            </>
-          )}
 
           {type === "packaging" && (
             <>

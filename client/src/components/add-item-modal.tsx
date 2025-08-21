@@ -17,7 +17,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   insertGreenBeanSchema,
-  insertRoastedCoffeeSchema,
   insertPackagingMaterialSchema,
   type GreenBean,
 } from "@shared/schema";
@@ -25,17 +24,13 @@ import {
 interface AddItemModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  itemType: "green-bean" | "roasted-coffee" | "packaging";
+  itemType: "green-bean" | "packaging";
 }
 
 const addItemSchema = z.discriminatedUnion("itemType", [
   z.object({
     itemType: z.literal("green-bean"),
     ...insertGreenBeanSchema.shape,
-  }),
-  z.object({
-    itemType: z.literal("roasted-coffee"),
-    ...insertRoastedCoffeeSchema.shape,
   }),
   z.object({
     itemType: z.literal("packaging"),
@@ -52,16 +47,11 @@ export default function AddItemModal({ open, onOpenChange, itemType }: AddItemMo
     resolver: zodResolver(addItemSchema),
     defaultValues: {
       itemType: itemType,
-      roastDate: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
       location: "Origin", // Default location for green beans
     },
   });
 
-  // Fetch green beans for roasted coffee creation
-  const { data: greenBeans = [] } = useQuery<GreenBean[]>({
-    queryKey: ["/api/green-beans"],
-    enabled: itemType === "roasted-coffee",
-  });
+
 
   const addItemMutation = useMutation({
     mutationFn: async (data: AddItemForm) => {
@@ -71,9 +61,6 @@ export default function AddItemModal({ open, onOpenChange, itemType }: AddItemMo
         case "green-bean":
           await apiRequest("POST", "/api/green-beans", itemData);
           break;
-        case "roasted-coffee":
-          await apiRequest("POST", "/api/roasted-coffee", itemData);
-          break;
         case "packaging":
           await apiRequest("POST", "/api/packaging-materials", itemData);
           break;
@@ -81,7 +68,6 @@ export default function AddItemModal({ open, onOpenChange, itemType }: AddItemMo
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/green-beans"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/roasted-coffee"] });
       queryClient.invalidateQueries({ queryKey: ["/api/packaging-materials"] });
       toast({ title: "Item added successfully" });
       form.reset();
@@ -102,7 +88,7 @@ export default function AddItemModal({ open, onOpenChange, itemType }: AddItemMo
         <DialogHeader>
           <div className="flex justify-between items-center">
             <DialogTitle>
-              Add New {itemType === "green-bean" ? "Green Bean" : itemType === "roasted-coffee" ? "Roasted Coffee" : "Packaging Material"}
+              Add New {itemType === "green-bean" ? "Green Bean" : "Packaging Material"}
             </DialogTitle>
             <Button
               variant="ghost"
@@ -174,62 +160,7 @@ export default function AddItemModal({ open, onOpenChange, itemType }: AddItemMo
             </>
           )}
 
-          {itemType === "roasted-coffee" && (
-            <>
-              <div>
-                <Label htmlFor="greenBeanId">Green Bean Used</Label>
-                <Select
-                  value={form.watch("greenBeanId") || undefined}
-                  onValueChange={(value) => {
-                    const selectedBean = greenBeans.find(bean => bean.id === value);
-                    if (selectedBean) {
-                      form.setValue("greenBeanId", value);
-                      form.setValue("variety", selectedBean.variety);
-                    }
-                  }}
-                >
-                  <SelectTrigger data-testid="select-green-bean">
-                    <SelectValue placeholder="Select green bean..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {greenBeans.map((bean) => (
-                      <SelectItem key={bean.id} value={bean.id || "invalid"}>
-                        {bean.variety} {bean.origin ? `(${bean.origin})` : ''} - {bean.currentStock}kg available
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="greenBeanWeight">Green Bean Weight Used (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  {...form.register("greenBeanWeight")}
-                  placeholder="0"
-                  data-testid="input-green-bean-weight"
-                />
-              </div>
-              <div>
-                <Label htmlFor="variety">Variety (Auto-filled)</Label>
-                <Input
-                  {...form.register("variety")}
-                  placeholder="Select green bean first"
-                  readOnly
-                  className="bg-gray-50"
-                  data-testid="input-variety"
-                />
-              </div>
-              <div>
-                <Label htmlFor="roastDate">Roast Date</Label>
-                <Input
-                  type="date"
-                  {...form.register("roastDate")}
-                  data-testid="input-roast-date"
-                />
-              </div>
-            </>
-          )}
+
 
           {itemType === "packaging" && (
             <>
