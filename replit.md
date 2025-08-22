@@ -1,6 +1,6 @@
 # Overview
 
-This is a full-stack coffee roastery inventory management application built with React and Express. The application helps coffee roasters track their green beans, roasted coffee, and packaging materials inventory with real-time stock monitoring and management capabilities.
+This is a full-stack coffee roastery inventory management application built with React and Express. The application helps coffee roasters track their green beans and packaging materials inventory with real-time stock monitoring and management capabilities.
 
 # User Preferences
 
@@ -30,11 +30,9 @@ Change log display preferences: Show "yes → no" instead of "true → false" fo
 
 ## Data Models
 
-**Green Beans**: Tracks variety, origin, current stock levels, minimum stock thresholds, and last updated timestamps.
+**Green Beans**: Tracks variety, origin, location, current stock levels, bag labels, webshop status, and last updated timestamps with full change history audit trail.
 
-**Roasted Coffee**: Manages variety, roast date, roast level (Light/Medium/Dark), original weight, and current weight tracking.
-
-**Packaging Materials**: Handles different packaging types (coffee bags, post bags) with size variants and stock level monitoring.
+**Packaging Materials**: Handles different packaging types (coffee bags, post bags) with size variants, stock level monitoring, and minimum stock thresholds.
 
 ## Build System
 

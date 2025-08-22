@@ -9,7 +9,7 @@ import AddItemModal from "@/components/add-item-modal";
 export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [itemType, setItemType] = useState<"green-bean" | "roasted-coffee" | "packaging">("green-bean");
+  const [itemType, setItemType] = useState<"green-bean" | "packaging">("green-bean");
 
   const handleExport = async () => {
     try {
