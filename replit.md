@@ -2,6 +2,8 @@
 
 This is a full-stack coffee roastery inventory management application built with React and Express. The application helps coffee roasters track their green beans and packaging materials inventory with real-time stock monitoring and management capabilities.
 
+It also hosts a standalone **Domino Eye Counter** mobile web app at `/domino/` (source in `client/public/domino/`): an installable PWA that counts domino pips with the phone camera (pure-JS blob detection in `detector.js`, no dependencies) and keeps score for players across multiple simultaneous games, with an all-time leaderboard stored in localStorage. It is served as plain static files — in production via `serveStatic` from `dist/public`, in development via an explicit `express.static` mount in `server/vite.ts` (Vite's dev middleware does not serve `.html` files from the public dir). It shares nothing with the coffee app.
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

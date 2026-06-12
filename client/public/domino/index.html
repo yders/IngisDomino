@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Domino Eye Counter</title>
+  <meta name="description" content="Count domino pips with your camera and keep score across games and players." />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Domino" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>🁫 Domino Counter</h1>
+    <button class="icon-btn" data-action="share" title="Share with friends" aria-label="Share">⤴︎ Share</button>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="games" class="active"><span class="tab-icon">🎲</span>Games</button>
+    <button data-tab="players"><span class="tab-icon">👥</span>Players</button>
+    <button data-tab="counter"><span class="tab-icon">📷</span>Count</button>
+  </nav>
+
+  <!-- Camera overlay -->
+  <div id="camera" class="camera" hidden>
+    <div class="camera-header">
+      <button class="icon-btn" data-action="camera-close">✕ Close</button>
+      <span id="camera-title" class="camera-title"></span>
+      <button class="icon-btn" data-action="camera-polarity" id="polarity-btn" title="Pip color">Auto</button>
+    </div>
+    <div class="camera-stage">
+      <video id="camera-video" playsinline muted hidden></video>
+      <canvas id="camera-canvas"></canvas>
+      <div id="camera-error" class="camera-error" hidden></div>
+    </div>
+    <div class="camera-controls">
+      <div class="count-row">
+        <button class="step-btn" data-action="camera-minus" hidden>−</button>
+        <div class="count-display"><span id="camera-count">0</span><small>eyes</small></div>
+        <button class="step-btn" data-action="camera-plus" hidden>＋</button>
+      </div>
+      <div class="camera-hint" id="camera-hint">Point the camera at the tiles, then capture</div>
+      <div class="camera-buttons">
+        <button class="btn ghost" data-action="camera-retake" hidden>↺ Retake</button>
+        <button class="btn primary big" data-action="camera-capture">📸 Capture</button>
+        <button class="btn primary big" data-action="camera-confirm" hidden>✓ Use count</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script src="detector.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
