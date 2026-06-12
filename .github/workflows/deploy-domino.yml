@@ -1,5 +1,11 @@
 name: Deploy Domino app to GitHub Pages
 
+# Publishes client/public/domino to the gh-pages branch, which GitHub Pages
+# serves at https://yders.github.io/RoastLogistics/. The branch route is used
+# because the workflow GITHUB_TOKEN is not allowed to create/configure a
+# Pages site via the API (actions/configure-pages enablement fails with
+# "Resource not accessible by integration").
+
 on:
   push:
     branches: [main]
@@ -9,9 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: github-pages
@@ -20,25 +24,19 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # enablement: true creates the Pages site on first run, so no manual
-      # repo-settings step is needed.
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload domino app
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: client/public/domino
-
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish domino app to gh-pages branch
+        run: |
+          cd client/public/domino
+          touch .nojekyll
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy domino app from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
