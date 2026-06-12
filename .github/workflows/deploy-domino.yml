@@ -1,7 +1,7 @@
 name: Deploy Domino app to GitHub Pages
 
 # Publishes client/public/domino to the gh-pages branch, which GitHub Pages
-# serves at https://yders.github.io/RoastLogistics/. The branch route is used
+# serves at https://yders.github.io/IngisDomino/. The branch route is used
 # because the workflow GITHUB_TOKEN is not allowed to create/configure a
 # Pages site via the API (actions/configure-pages enablement fails with
 # "Resource not accessible by integration").
