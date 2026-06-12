@@ -40,6 +40,16 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
+  // Vite's dev middleware doesn't serve .html files from the public dir,
+  // so the standalone domino app must be mounted explicitly (production
+  // serves it from dist/public via serveStatic).
+  app.use(
+    "/domino",
+    express.static(
+      path.resolve(import.meta.dirname, "..", "client", "public", "domino"),
+    ),
+  );
+
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
