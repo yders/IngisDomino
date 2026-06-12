@@ -236,6 +236,10 @@
         </div>`;
     }
 
+    if (!finished) {
+      html += `<button class="btn ghost block" data-action="add-player-to-game" data-id="${game.id}">＋ Add player to game</button>`;
+    }
+
     if (game.rounds.length) {
       html += `<div class="section-title">History</div><div class="card">`;
       const recent = [...game.rounds].sort((a, b) => b.ts - a.ts);
@@ -362,17 +366,60 @@
       </div>`;
   }
 
-  function ngAddPlayer() {
-    const input = document.getElementById("ng-new-player");
+  // Shared by the new-game and add-to-game modals: create a player from the
+  // inline input and append it to the checkbox list, pre-checked.
+  function inlineAddPlayer(listId, inputId) {
+    const input = document.getElementById(inputId);
     const name = input.value.trim();
     if (!name) return;
     const p = addPlayer(name);
-    const list = document.getElementById("ng-players");
     const label = document.createElement("label");
     label.innerHTML = `<input type="checkbox" name="players" value="${p.id}" checked /> ${p.avatar} ${esc(p.name)}`;
-    list.appendChild(label);
+    document.getElementById(listId).appendChild(label);
     input.value = "";
     input.focus();
+  }
+
+  function showAddToGameModal(gameId) {
+    const game = db.games.find((g) => g.id === gameId);
+    if (!game) return;
+    const available = db.players.filter((p) => !game.playerIds.includes(p.id));
+    const checks = available
+      .map((p) => `<label><input type="checkbox" name="players" value="${p.id}" /> ${p.avatar} ${esc(p.name)}</label>`)
+      .join("");
+    modalRoot.innerHTML = `
+      <div class="modal-backdrop" data-action="modal-backdrop">
+        <div class="modal">
+          <h3>Who's joining ${esc(game.name)}?</h3>
+          <div class="field">
+            <div class="check-list" id="ag-players">${checks}</div>
+            <div class="inline-add">
+              <input type="text" id="ag-new-player" placeholder="${available.length ? "Or add a new player…" : "New player's name…"}" />
+              <button class="btn" data-action="ag-add-player">＋</button>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost" data-action="modal-cancel">Cancel</button>
+            <button class="btn primary" data-action="ag-save" data-id="${game.id}">Add to game</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function agSave(gameId) {
+    const game = db.games.find((g) => g.id === gameId);
+    if (!game) return;
+    const ids = [...document.querySelectorAll("#ag-players input:checked")].map((el) => el.value);
+    if (!ids.length) {
+      alert("Pick who joins (or add a new player with ＋).");
+      return;
+    }
+    for (const id of ids) {
+      if (!game.playerIds.includes(id)) game.playerIds.push(id);
+    }
+    save();
+    closeModal();
+    render();
   }
 
   function ngCreate() {
@@ -598,7 +645,9 @@
     const dw = cam.frozenCanvas.width;
     const dh = cam.frozenCanvas.height;
     if (!dw) return;
-    const ww = 360;
+    // Higher resolution than the live preview: this one-shot count is the
+    // one that gets used, so spend the extra milliseconds on accuracy.
+    const ww = 560;
     const wh = Math.round((dh / dw) * ww);
     cam.workCanvas.width = ww;
     cam.workCanvas.height = wh;
@@ -700,10 +749,19 @@
         showNewGameModal();
         break;
       case "ng-add-player":
-        ngAddPlayer();
+        inlineAddPlayer("ng-players", "ng-new-player");
         break;
       case "ng-create":
         ngCreate();
+        break;
+      case "add-player-to-game":
+        showAddToGameModal(target.dataset.id);
+        break;
+      case "ag-add-player":
+        inlineAddPlayer("ag-players", "ag-new-player");
+        break;
+      case "ag-save":
+        agSave(target.dataset.id);
         break;
       case "rename-game": {
         const game = db.games.find((g) => g.id === target.dataset.id);
@@ -857,11 +915,15 @@
     render();
   });
 
-  // Enter key adds the inline player in the new-game modal.
+  // Enter key adds the inline player in the new-game / add-to-game modals.
   document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter" && ev.target.id === "ng-new-player") {
+    if (ev.key !== "Enter") return;
+    if (ev.target.id === "ng-new-player") {
       ev.preventDefault();
-      ngAddPlayer();
+      inlineAddPlayer("ng-players", "ng-new-player");
+    } else if (ev.target.id === "ag-new-player") {
+      ev.preventDefault();
+      inlineAddPlayer("ag-players", "ag-new-player");
     }
   });
 

@@ -2,9 +2,11 @@
  * Domino pip detector.
  *
  * Pure-JS computer vision: grayscale -> adaptive threshold (via integral
- * image) -> connected components -> shape/size filtering. Works for dark
- * pips on light tiles and light pips on dark tiles ("auto" picks the
- * polarity that yields more plausible pips).
+ * image) at two window scales -> morphological closing (heals pips split
+ * by glare) -> connected components -> shape/size filtering -> merge of
+ * scales -> pip-size outlier rejection. Works for dark pips on light
+ * tiles and light pips on dark tiles ("auto" picks the polarity that
+ * yields more plausible pips).
  *
  * Exposed as `DominoDetector.detect(imageData, options)` in the browser
  * and via module.exports under Node (for tests).
@@ -60,6 +62,67 @@
     return mask;
   }
 
+  function dilate3(mask, w, h) {
+    const out = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (mask[i]) {
+          out[i] = 1;
+          continue;
+        }
+        let on = 0;
+        for (let dy = -1; dy <= 1 && !on; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= h) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= w) continue;
+            if (mask[yy * w + xx]) {
+              on = 1;
+              break;
+            }
+          }
+        }
+        out[i] = on;
+      }
+    }
+    return out;
+  }
+
+  function erode3(mask, w, h) {
+    const out = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (!mask[i]) continue;
+        let all = 1;
+        for (let dy = -1; dy <= 1 && all; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= h) {
+            all = 0;
+            break;
+          }
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= w || !mask[yy * w + xx]) {
+              all = 0;
+              break;
+            }
+          }
+        }
+        out[i] = all;
+      }
+    }
+    return out;
+  }
+
+  // Closing (dilate then erode) reunites pips that specular highlights or
+  // engraved centers split into crescents, without growing isolated blobs.
+  function close3(mask, w, h) {
+    return erode3(dilate3(mask, w, h), w, h);
+  }
+
   // Iterative flood fill (4-connectivity) collecting per-blob stats.
   function connectedComponents(mask, w, h) {
     const labels = new Int32Array(w * h);
@@ -98,39 +161,114 @@
   }
 
   // Keep only blobs that look like pips: roughly round, sensible size,
-  // not clipped by the frame edge, and similar in size to each other.
+  // not clipped by the frame edge.
   function filterPips(comps, w, h) {
     const frameArea = w * h;
-    const minArea = Math.max(14, frameArea * 0.00015);
-    const maxArea = frameArea * 0.02;
-    let pips = [];
+    const minArea = Math.max(12, frameArea * 0.00012);
+    const maxArea = frameArea * 0.025;
+    const maxDim = Math.min(w, h) * 0.22;
+    const pips = [];
     for (const c of comps) {
       if (c.touchesBorder) continue;
       if (c.area < minArea || c.area > maxArea) continue;
       const bw = c.maxX - c.minX + 1;
       const bh = c.maxY - c.minY + 1;
+      if (bw < 3 || bh < 3) continue;
+      if (bw > maxDim || bh > maxDim) continue;
       const aspect = bw / bh;
-      if (aspect < 0.55 || aspect > 1.8) continue;
+      if (aspect < 0.58 || aspect > 1.72) continue;
       const extent = c.area / (bw * bh);
-      if (extent < 0.5) continue; // a filled circle has extent ~0.785
-      pips.push(c);
+      if (extent < 0.52) continue; // a filled circle has extent ~0.785
+      pips.push({ x: c.cx, y: c.cy, r: Math.sqrt(c.area / Math.PI) });
     }
-    // Pips photographed together are all about the same size; drop outliers.
-    if (pips.length >= 4) {
-      const areas = pips.map((p) => p.area).sort((a, b) => a - b);
-      const median = areas[areas.length >> 1];
-      pips = pips.filter((p) => p.area >= median * 0.35 && p.area <= median * 2.8);
+    return pips;
+  }
+
+  // Union of two detections, skipping pips already found by the other scale.
+  function mergePips(a, b) {
+    const out = a.slice();
+    for (const p of b) {
+      let dup = false;
+      for (const q of a) {
+        const dx = p.x - q.x;
+        const dy = p.y - q.y;
+        const limit = Math.max(3, Math.max(p.r, q.r)) * 2;
+        if (dx * dx + dy * dy < limit * limit) {
+          dup = true;
+          break;
+        }
+      }
+      if (!dup) out.push(p);
     }
-    return pips.map((p) => ({
-      x: p.cx,
-      y: p.cy,
-      r: Math.sqrt(p.area / Math.PI),
-    }));
+    return out;
+  }
+
+  // Pips photographed together are all about the same size; drop outliers.
+  function rejectSizeOutliers(pips) {
+    if (pips.length < 5) return pips;
+    const areas = pips.map((p) => p.r * p.r).sort((a, b) => a - b);
+    const median = areas[areas.length >> 1];
+    return pips.filter((p) => {
+      const a = p.r * p.r;
+      return a >= median * 0.4 && a <= median * 2.3;
+    });
+  }
+
+  // Mean gray of an axis-aligned box, clamped to the frame.
+  function boxMean(ii, w, h, x0, y0, x1, y1) {
+    const W = w + 1;
+    x0 = x0 < 0 ? 0 : x0;
+    y0 = y0 < 0 ? 0 : y0;
+    x1 = x1 > w - 1 ? w - 1 : x1;
+    y1 = y1 > h - 1 ? h - 1 : y1;
+    const area = (x1 - x0 + 1) * (y1 - y0 + 1);
+    if (area <= 0) return 0;
+    const sum = ii[(y1 + 1) * W + x1 + 1] - ii[y0 * W + x1 + 1] - ii[(y1 + 1) * W + x0] + ii[y0 * W + x0];
+    return sum / area;
+  }
+
+  // A real pip is much darker (or lighter) than the ring around it; blobs
+  // assembled from sensor noise or surface texture are not.
+  function hasContrast(p, ii, w, h, darkOnLight) {
+    const MIN_CONTRAST = 20;
+    const cx = Math.round(p.x);
+    const cy = Math.round(p.y);
+    const rIn = Math.max(1, Math.round(p.r * 0.7));
+    const rOut = Math.max(rIn + 2, Math.round(p.r * 2.2));
+    const inner = boxMean(ii, w, h, cx - rIn, cy - rIn, cx + rIn, cy + rIn);
+    const innerArea = (2 * rIn + 1) * (2 * rIn + 1);
+    const outerArea = (2 * rOut + 1) * (2 * rOut + 1);
+    const outerSumMean = boxMean(ii, w, h, cx - rOut, cy - rOut, cx + rOut, cy + rOut);
+    // Approximate the surrounding ring by subtracting the inner box from
+    // the outer box (areas are approximate near frame edges; close enough).
+    const ring = (outerSumMean * outerArea - inner * innerArea) / (outerArea - innerArea);
+    return darkOnLight ? ring - inner >= MIN_CONTRAST : inner - ring >= MIN_CONTRAST;
+  }
+
+  function detectPolarity(g, ii, w, h, darkOnLight) {
+    const bias = 12;
+    const minDim = Math.min(w, h);
+    // Small window catches normal-size pips; the large window catches big
+    // pips (tile filling the frame) whose centers a small window misses.
+    const winSmall = Math.max(8, Math.round(minDim / 10));
+    const winLarge = Math.max(16, Math.round(minDim / 4));
+    const detectAt = (win) => {
+      const mask = adaptiveMask(g, ii, w, h, win, bias, darkOnLight);
+      // Closing heals pips split by glare, but can also bridge tightly
+      // packed small pips. Glare crescents fail the roundness filter while
+      // merged pips vanish entirely, so whichever variant yields more
+      // valid pips is the faithful one.
+      const validate = (pips) => pips.filter((p) => hasContrast(p, ii, w, h, darkOnLight));
+      const raw = validate(filterPips(connectedComponents(mask, w, h), w, h));
+      const closed = validate(filterPips(connectedComponents(close3(mask, w, h), w, h), w, h));
+      return closed.length >= raw.length ? closed : raw;
+    };
+    return rejectSizeOutliers(mergePips(detectAt(winSmall), detectAt(winLarge)));
   }
 
   /**
    * @param {ImageData|{width,height,data}} imageData RGBA frame (downscaled,
-   *   ideally <= ~400px wide for speed)
+   *   ideally <= ~600px wide for speed)
    * @param {{polarity?: 'auto'|'dark'|'light'}} [options] pip color relative
    *   to the tile face
    * @returns {{count: number, pips: Array<{x,y,r}>, polarity: 'dark'|'light'}}
@@ -141,17 +279,11 @@
     const h = imageData.height;
     const g = toGray(imageData.data, w, h);
     const ii = integralImage(g, w, h);
-    const win = Math.max(8, Math.round(Math.min(w, h) / 10));
-    const bias = 14;
 
     let dark = null;
     let light = null;
-    if (opts.polarity !== "light") {
-      dark = filterPips(connectedComponents(adaptiveMask(g, ii, w, h, win, bias, true), w, h), w, h);
-    }
-    if (opts.polarity !== "dark") {
-      light = filterPips(connectedComponents(adaptiveMask(g, ii, w, h, win, bias, false), w, h), w, h);
-    }
+    if (opts.polarity !== "light") dark = detectPolarity(g, ii, w, h, true);
+    if (opts.polarity !== "dark") light = detectPolarity(g, ii, w, h, false);
 
     if (opts.polarity === "dark") return { count: dark.length, pips: dark, polarity: "dark" };
     if (opts.polarity === "light") return { count: light.length, pips: light, polarity: "light" };
