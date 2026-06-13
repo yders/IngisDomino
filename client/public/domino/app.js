@@ -77,10 +77,25 @@
     return rows.filter((r) => r.total === best).map((r) => r.playerId);
   }
 
+  // A player's score entries in the order they were added; entry i is the
+  // player's round i+1. Rounds are derived by index so the model stays a
+  // flat list and players who joined late simply have blank early rounds.
+  function playerEntries(game, playerId) {
+    return game.rounds.filter((r) => r.playerId === playerId);
+  }
+
+  function playerGameStats(game, playerId) {
+    const entries = playerEntries(game, playerId);
+    const total = entries.reduce((s, e) => s + e.points, 0);
+    const zeros = entries.reduce((s, e) => s + (e.points === 0 ? 1 : 0), 0);
+    const avg = entries.length ? total / entries.length : null;
+    return { entries, total, zeros, avg };
+  }
+
   function allTimeStats() {
     const stats = new Map();
     for (const p of db.players) {
-      stats.set(p.id, { player: p, points: 0, games: 0, wins: 0 });
+      stats.set(p.id, { player: p, points: 0, games: 0, wins: 0, rounds: 0, zeros: 0 });
     }
     for (const g of db.games) {
       for (const pid of g.playerIds) {
@@ -89,7 +104,10 @@
       }
       for (const r of g.rounds) {
         const s = stats.get(r.playerId);
-        if (s) s.points += r.points;
+        if (!s) continue;
+        s.points += r.points;
+        s.rounds++;
+        if (r.points === 0) s.zeros++;
       }
       if (g.finishedAt && g.winnerIds) {
         for (const pid of g.winnerIds) {
@@ -98,7 +116,7 @@
         }
       }
     }
-    return [...stats.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
+    return [...stats.values()].sort((a, b) => b.wins - a.wins || b.points - a.points);
   }
 
   // ------------------------------------------------------------------ utils
@@ -187,6 +205,50 @@
 
   // ----------------------------------------------------------- game detail
 
+  // Classic Mexican-train style scoresheet: one row per round, one column
+  // per player, totals at the bottom. Best score of each round is green;
+  // tapping a number lets the scorekeeper fix it (while the game is live).
+  function renderScoreboard(game) {
+    const cols = game.playerIds.map((pid) => ({ pid, entries: playerEntries(game, pid) }));
+    let numRounds = 0;
+    for (const c of cols) if (c.entries.length > numRounds) numRounds = c.entries.length;
+    if (!numRounds) return "";
+    const finished = !!game.finishedAt;
+    const leaders = new Set(leadersOf(game));
+    const bestOf = game.winRule === "low" ? Math.min : Math.max;
+
+    let html = `<div class="section-title">Rounds</div><div class="card scoreboard-card"><table class="scoreboard"><thead><tr><th></th>`;
+    for (const c of cols) {
+      const p = playerById(c.pid);
+      html += `<th><span class="av">${p ? p.avatar : "👤"}</span><span class="nm">${esc(playerName(c.pid))}</span></th>`;
+    }
+    html += `</tr></thead><tbody>`;
+    for (let i = 0; i < numRounds; i++) {
+      const values = [];
+      for (const c of cols) if (c.entries[i]) values.push(c.entries[i].points);
+      const best = values.length ? bestOf.apply(null, values) : null;
+      html += `<tr><td class="rnd">${i + 1}</td>`;
+      for (const c of cols) {
+        const e = c.entries[i];
+        if (!e) {
+          html += `<td class="cell empty">–</td>`;
+        } else {
+          const cls = e.points === best ? " best" : "";
+          const tap = finished ? "" : ` data-action="edit-cell" data-game="${game.id}" data-player="${c.pid}" data-index="${i}"`;
+          html += `<td class="cell${cls}"${tap}>${e.points}</td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody><tfoot><tr><th>Σ</th>`;
+    for (const c of cols) {
+      const lead = leaders.has(c.pid);
+      html += `<td class="${lead ? "lead" : ""}">${lead ? "👑 " : ""}${gameTotal(game, c.pid)}</td>`;
+    }
+    html += `</tr></tfoot></table>${finished ? "" : `<div class="hint-line">Tap a number to fix it</div>`}</div>`;
+    return html;
+  }
+
   function renderGameDetail() {
     const game = db.games.find((g) => g.id === state.gameId);
     if (!game) {
@@ -217,16 +279,20 @@
 
     for (const row of standings(game)) {
       const p = playerById(row.playerId);
-      const roundCount = game.rounds.filter((r) => r.playerId === row.playerId).length;
+      const st = playerGameStats(game, row.playerId);
+      const n = st.entries.length;
+      const sub = n
+        ? `${n} round${n === 1 ? "" : "s"} · avg ${st.avg.toFixed(1)}${st.zeros ? ` · ${st.zeros}× 🥚` : ""}`
+        : "no rounds yet";
       html += `
         <div class="card ${leaders.has(row.playerId) && game.rounds.length ? "leader" : ""}">
           <div class="score-row">
             <span class="avatar">${p ? p.avatar : "👤"}</span>
             <div class="who">
               <div class="name">${esc(playerName(row.playerId))}</div>
-              <div class="sub">${roundCount} round${roundCount === 1 ? "" : "s"}</div>
+              <div class="sub">${sub}</div>
             </div>
-            <div class="total">${row.total}</div>
+            <div class="total" data-total="${row.playerId}">${row.total}</div>
             ${finished ? "" : `
             <div class="actions">
               <button class="cam" data-action="scan-for-player" data-game="${game.id}" data-player="${row.playerId}" title="Count with camera">📷</button>
@@ -240,21 +306,7 @@
       html += `<button class="btn ghost block" data-action="add-player-to-game" data-id="${game.id}">＋ Add player to game</button>`;
     }
 
-    if (game.rounds.length) {
-      html += `<div class="section-title">History</div><div class="card">`;
-      const recent = [...game.rounds].sort((a, b) => b.ts - a.ts);
-      for (const r of recent) {
-        html += `
-          <div class="history-item">
-            <div>
-              <span class="pts">+${r.points}</span> ${esc(playerName(r.playerId))}
-              <div class="meta">${r.method === "camera" ? "📷 camera" : "✎ manual"} · ${fmtTime(r.ts)}</div>
-            </div>
-            ${finished ? "" : `<button class="del" data-action="delete-round" data-game="${game.id}" data-round="${r.id}" title="Remove">✕</button>`}
-          </div>`;
-      }
-      html += `</div>`;
-    }
+    html += renderScoreboard(game);
 
     html += `<div class="btn-row">`;
     if (finished) {
@@ -286,6 +338,7 @@
             <div class="who">
               <div class="name">${esc(s.player.name)}</div>
               <div class="sub">${s.wins} win${s.wins === 1 ? "" : "s"} · ${s.games} game${s.games === 1 ? "" : "s"}</div>
+              ${s.rounds ? `<div class="sub">avg ${(s.points / s.rounds).toFixed(1)}/round · ${s.zeros}× 🥚</div>` : ""}
             </div>
             <span class="pts">${s.points}</span>
             <button class="menu" data-action="player-menu" data-id="${s.player.id}">⋯</button>
@@ -350,8 +403,8 @@
           <div class="field">
             <label>Winner</label>
             <select id="ng-rule">
+              <option value="low">Lowest score wins (Mexican train)</option>
               <option value="high">Highest score wins</option>
-              <option value="low">Lowest score wins</option>
             </select>
           </div>
           <div class="field">
@@ -456,7 +509,7 @@
           <h3>Points for ${esc(playerName(playerId))}</h3>
           <div class="field">
             <label>Eyes counted</label>
-            <input type="number" id="manual-points" inputmode="numeric" autofocus />
+            <input type="number" id="manual-points" inputmode="numeric" min="0" placeholder="0 = perfect round 🥚" autofocus />
           </div>
           <div class="btn-row">
             <button class="btn ghost" data-action="modal-cancel">Cancel</button>
@@ -476,6 +529,26 @@
     game.rounds.push({ id: uid(), playerId, points, method, ts: Date.now() });
     save();
     render();
+    if (points === 0) {
+      toast(`🥚 Zero! Perfect round for ${playerName(playerId)}`);
+    }
+    const totalEl = document.querySelector(`[data-total="${playerId}"]`);
+    if (totalEl) totalEl.classList.add("pop");
+  }
+
+  let toastTimer = 0;
+  function toast(message) {
+    let el = document.getElementById("toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast";
+      el.className = "toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
   }
 
   // ---------------------------------------------------------------- camera
@@ -809,8 +882,7 @@
         const gameId = target.dataset.game;
         const playerId = target.dataset.player;
         openCamera(`Counting for ${playerName(playerId)}`, (count) => {
-          if (count > 0) addRound(gameId, playerId, count, "camera");
-          else render();
+          addRound(gameId, playerId, count, "camera");
         });
         break;
       }
@@ -819,20 +891,41 @@
         break;
       case "manual-save": {
         const points = parseInt(document.getElementById("manual-points").value, 10);
-        if (!Number.isFinite(points) || points <= 0) {
-          alert("Enter a number of eyes greater than 0.");
+        if (!Number.isFinite(points) || points < 0) {
+          alert("Enter the number of eyes — 0 counts too (best round there is!).");
           break;
         }
         closeModal();
         addRound(target.dataset.game, target.dataset.player, points, "manual");
         break;
       }
-      case "delete-round": {
+      case "edit-cell": {
         const game = db.games.find((g) => g.id === target.dataset.game);
-        if (!game) break;
-        game.rounds = game.rounds.filter((r) => r.id !== target.dataset.round);
-        save();
-        render();
+        if (!game || game.finishedAt) break;
+        const playerId = target.dataset.player;
+        const index = parseInt(target.dataset.index, 10);
+        const entry = playerEntries(game, playerId)[index];
+        if (!entry) break;
+        const answer = prompt(
+          `Round ${index + 1} for ${playerName(playerId)} — new eye count, or "x" to remove:`,
+          String(entry.points)
+        );
+        if (answer === null) break;
+        const t = answer.trim().toLowerCase();
+        if (t === "x") {
+          game.rounds = game.rounds.filter((r) => r.id !== entry.id);
+          save();
+          render();
+          break;
+        }
+        const v = parseInt(t, 10);
+        if (Number.isFinite(v) && v >= 0) {
+          entry.points = v;
+          save();
+          render();
+        } else {
+          alert('Enter a number (0 or more), or "x" to remove the round.');
+        }
         break;
       }
 
