@@ -571,6 +571,7 @@
     detectedCount: 0,
     adjust: 0,
     frozen: false,
+    counting: false,
     polarity: "auto",
     onConfirm: null,
   };
@@ -594,6 +595,7 @@
     cam.detectedCount = 0;
     cam.adjust = 0;
     cam.frozen = false;
+    cam.counting = false;
     cam.errorEl.hidden = true;
     cam.el.hidden = false;
     document.body.style.overflow = "hidden";
@@ -686,55 +688,107 @@
   }
 
   function updateCamUi() {
-    cam.countEl.textContent = String(currentCount());
+    cam.countEl.textContent = cam.counting ? "…" : String(currentCount());
     cam.polarityBtn.textContent = POLARITY_LABELS[cam.polarity];
     const b = camButtons();
+    const settled = cam.frozen && !cam.counting;
     b.capture.hidden = cam.frozen;
-    b.confirm.hidden = !cam.frozen;
-    b.retake.hidden = !cam.frozen;
-    b.minus.hidden = !cam.frozen;
-    b.plus.hidden = !cam.frozen;
-    cam.hintEl.textContent = cam.frozen
-      ? "Check the circles — fix the count with − / ＋ if needed"
-      : "Point the camera at the tiles, then capture";
+    b.confirm.hidden = !settled;
+    b.retake.hidden = !settled;
+    b.minus.hidden = !settled;
+    b.plus.hidden = !settled;
+    cam.hintEl.textContent = cam.counting
+      ? "Counting the captured photo…"
+      : cam.frozen
+        ? "Check the circles — fix the count with − / ＋ if needed"
+        : "Point the camera at the tiles, then capture";
   }
 
-  function captureFrame() {
-    if (!cam.video.videoWidth) return;
+  // Detect on a full-resolution still, working at up to 720px wide for
+  // accuracy. Returns the count and overlay pips in normalized coords.
+  function detectStill(source) {
+    const sw = source.width;
+    const sh = source.height;
+    const ww = Math.min(720, sw);
+    const wh = Math.round((sh / sw) * ww);
+    cam.workCanvas.width = ww;
+    cam.workCanvas.height = wh;
+    const wctx = cam.workCanvas.getContext("2d", { willReadFrequently: true });
+    wctx.drawImage(source, 0, 0, ww, wh);
+    const imageData = wctx.getImageData(0, 0, ww, wh);
+    const result = DominoDetector.detect(imageData, { polarity: cam.polarity === "auto" ? "auto" : cam.polarity });
+    return {
+      count: result.count,
+      pips: result.pips.map((p) => ({ x: p.x / ww, y: p.y / wh, r: p.r / ww })),
+    };
+  }
+
+  function grabFullResStill() {
+    const c = document.createElement("canvas");
+    c.width = cam.video.videoWidth;
+    c.height = cam.video.videoHeight;
+    c.getContext("2d").drawImage(cam.video, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // The live preview is only an estimate. On capture we grab a short burst
+  // of full-resolution stills, recount each, and trust the majority result
+  // (a single frame can be blurred or catch glare). The frame that produced
+  // the winning count becomes the frozen image shown with its pip circles.
+  async function captureFrame() {
+    if (!cam.video.videoWidth || cam.counting) return;
     cam.frozen = true;
+    cam.counting = true;
     cam.adjust = 0;
-    // Keep a clean (no overlay) copy of the frame for re-detection/redraws.
-    cam.frozenCanvas.width = cam.canvas.width;
-    cam.frozenCanvas.height = cam.canvas.height;
-    cam.frozenCanvas
-      .getContext("2d")
-      .drawImage(cam.video, 0, 0, cam.frozenCanvas.width, cam.frozenCanvas.height);
-    runDetectionFromFrozenFrame();
+    updateCamUi();
+
+    const results = [];
+    for (let i = 0; i < 3; i++) {
+      const still = grabFullResStill();
+      results.push({ still, ...detectStill(still) });
+      if (i < 2) await wait(60);
+    }
+
+    // Majority vote on the count; ties favor the earlier (usually sharper) frame.
+    const tally = new Map();
+    for (const r of results) tally.set(r.count, (tally.get(r.count) || 0) + 1);
+    let bestCount = results[0].count;
+    let bestVotes = 0;
+    for (const r of results) {
+      const v = tally.get(r.count);
+      if (v > bestVotes) {
+        bestVotes = v;
+        bestCount = r.count;
+      }
+    }
+    const chosen = results.find((r) => r.count === bestCount);
+
+    cam.frozenCanvas = chosen.still;
+    cam.pips = chosen.pips;
+    cam.detectedCount = chosen.count;
+    cam.counting = false;
     redrawFrozen();
     updateCamUi();
   }
 
   function runDetectionFromFrozenFrame() {
-    const dw = cam.frozenCanvas.width;
-    const dh = cam.frozenCanvas.height;
-    if (!dw) return;
-    // Higher resolution than the live preview: this one-shot count is the
-    // one that gets used, so spend the extra milliseconds on accuracy.
-    const ww = 560;
-    const wh = Math.round((dh / dw) * ww);
-    cam.workCanvas.width = ww;
-    cam.workCanvas.height = wh;
-    const wctx = cam.workCanvas.getContext("2d", { willReadFrequently: true });
-    wctx.drawImage(cam.frozenCanvas, 0, 0, ww, wh);
-    const imageData = wctx.getImageData(0, 0, ww, wh);
-    const result = DominoDetector.detect(imageData, { polarity: cam.polarity === "auto" ? "auto" : cam.polarity });
-    cam.pips = result.pips.map((p) => ({ x: p.x / ww, y: p.y / wh, r: p.r / ww }));
-    cam.detectedCount = result.count;
+    if (!cam.frozenCanvas.width) return;
+    const r = detectStill(cam.frozenCanvas);
+    cam.pips = r.pips;
+    cam.detectedCount = r.count;
   }
 
   function redrawFrozen() {
+    // The frozen still is full camera resolution; scale it to fill the
+    // display canvas (which keeps the live preview's aspect ratio).
     const ctx = cam.canvas.getContext("2d");
-    ctx.drawImage(cam.frozenCanvas, 0, 0);
+    ctx.drawImage(
+      cam.frozenCanvas,
+      0, 0, cam.frozenCanvas.width, cam.frozenCanvas.height,
+      0, 0, cam.canvas.width, cam.canvas.height
+    );
     drawPipOverlay(ctx, cam.canvas.width, cam.canvas.height);
   }
 
