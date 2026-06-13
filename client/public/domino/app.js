@@ -509,7 +509,7 @@
           <h3>Points for ${esc(playerName(playerId))}</h3>
           <div class="field">
             <label>Eyes counted</label>
-            <input type="number" id="manual-points" inputmode="numeric" min="0" placeholder="0 = perfect round 🥚" autofocus />
+            <input type="number" id="manual-points" inputmode="numeric" min="0" autofocus />
           </div>
           <div class="btn-row">
             <button class="btn ghost" data-action="modal-cancel">Cancel</button>
@@ -529,26 +529,8 @@
     game.rounds.push({ id: uid(), playerId, points, method, ts: Date.now() });
     save();
     render();
-    if (points === 0) {
-      toast(`🥚 Zero! Perfect round for ${playerName(playerId)}`);
-    }
     const totalEl = document.querySelector(`[data-total="${playerId}"]`);
     if (totalEl) totalEl.classList.add("pop");
-  }
-
-  let toastTimer = 0;
-  function toast(message) {
-    let el = document.getElementById("toast");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "toast";
-      el.className = "toast";
-      document.body.appendChild(el);
-    }
-    el.textContent = message;
-    el.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
   }
 
   // ---------------------------------------------------------------- camera
@@ -946,7 +928,7 @@
       case "manual-save": {
         const points = parseInt(document.getElementById("manual-points").value, 10);
         if (!Number.isFinite(points) || points < 0) {
-          alert("Enter the number of eyes — 0 counts too (best round there is!).");
+          alert("Enter the number of eyes.");
           break;
         }
         closeModal();
