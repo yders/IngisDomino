@@ -125,6 +125,13 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // Player avatar: their photo if they have one, otherwise their emoji.
+  // Sizing comes from the surrounding context's CSS.
+  function avatarHtml(player) {
+    if (player && player.photo) return `<img class="avatar-img" src="${player.photo}" alt="" />`;
+    return `<span class="avatar">${player ? player.avatar : "👤"}</span>`;
+  }
+
   function fmtTime(ts) {
     return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
@@ -220,7 +227,7 @@
     let html = `<div class="section-title">Rounds</div><div class="card scoreboard-card"><table class="scoreboard"><thead><tr><th></th>`;
     for (const c of cols) {
       const p = playerById(c.pid);
-      html += `<th><span class="av">${p ? p.avatar : "👤"}</span><span class="nm">${esc(playerName(c.pid))}</span></th>`;
+      html += `<th>${avatarHtml(p)}<span class="nm">${esc(playerName(c.pid))}</span></th>`;
     }
     html += `</tr></thead><tbody>`;
     for (let i = 0; i < numRounds; i++) {
@@ -264,7 +271,11 @@
         <h2>${esc(game.name)}</h2>
         <button class="icon-btn" data-action="rename-game" data-id="${game.id}">✎</button>
       </div>
-      <div class="game-meta">${ruleLabel}${game.targetScore ? ` · plays to ${game.targetScore}` : ""}${finished ? ` · finished ${fmtTime(game.finishedAt)}` : ""}</div>`;
+      <div class="game-meta">${
+        finished
+          ? ruleLabel
+          : `<button class="rule-chip" data-action="toggle-rule" data-id="${game.id}">${ruleLabel} ⇄</button>`
+      }${game.targetScore ? ` · plays to ${game.targetScore}` : ""}${finished ? ` · finished ${fmtTime(game.finishedAt)}` : ""}</div>`;
 
     if (finished) {
       const winners = (game.winnerIds || []).map((id) => `${esc(playerName(id))}`).join(" & ");
@@ -286,7 +297,7 @@
       html += `
         <div class="card">
           <div class="score-row">
-            <span class="avatar">${p ? p.avatar : "👤"}</span>
+            ${avatarHtml(p)}
             <div class="who">
               <div class="name">${esc(playerName(row.playerId))}</div>
               <div class="sub">${sub}</div>
@@ -333,7 +344,7 @@
         <div class="card">
           <div class="player-row">
             <span class="rank">${medal}</span>
-            <span class="avatar">${s.player.avatar}</span>
+            <button class="avatar-btn" data-action="player-photo" data-id="${s.player.id}" title="Set photo">${avatarHtml(s.player)}</button>
             <div class="who">
               <div class="name">${esc(s.player.name)}</div>
               <div class="sub">${s.wins} win${s.wins === 1 ? "" : "s"} · ${s.games} game${s.games === 1 ? "" : "s"}</div>
@@ -380,7 +391,7 @@
     const defaultName = `Game ${db.games.length + 1}`;
     const checks = db.players
       .map(
-        (p) => `<label><input type="checkbox" name="players" value="${p.id}" /> ${p.avatar} ${esc(p.name)}</label>`
+        (p) => `<label><input type="checkbox" name="players" value="${p.id}" /> ${avatarHtml(p)} ${esc(p.name)}</label>`
       )
       .join("");
     modalRoot.innerHTML = `
@@ -401,10 +412,10 @@
           </div>
           <div class="field">
             <label>Winner</label>
-            <select id="ng-rule">
-              <option value="low">Lowest score wins (Mexican train)</option>
-              <option value="high">Highest score wins</option>
-            </select>
+            <div class="seg" id="ng-rule">
+              <button type="button" class="seg-btn active" data-action="ng-rule-pick" data-rule="low">Lowest wins</button>
+              <button type="button" class="seg-btn" data-action="ng-rule-pick" data-rule="high">Highest wins</button>
+            </div>
           </div>
           <div class="field">
             <label>Play to (points, optional)</label>
@@ -437,7 +448,7 @@
     if (!game) return;
     const available = db.players.filter((p) => !game.playerIds.includes(p.id));
     const checks = available
-      .map((p) => `<label><input type="checkbox" name="players" value="${p.id}" /> ${p.avatar} ${esc(p.name)}</label>`)
+      .map((p) => `<label><input type="checkbox" name="players" value="${p.id}" /> ${avatarHtml(p)} ${esc(p.name)}</label>`)
       .join("");
     modalRoot.innerHTML = `
       <div class="modal-backdrop" data-action="modal-backdrop">
@@ -488,7 +499,10 @@
       createdAt: Date.now(),
       finishedAt: null,
       winnerIds: null,
-      winRule: document.getElementById("ng-rule").value === "low" ? "low" : "high",
+      winRule: (() => {
+        const active = document.querySelector("#ng-rule .seg-btn.active");
+        return active && active.dataset.rule === "high" ? "high" : "low";
+      })(),
       targetScore: Number.isFinite(target) && target > 0 ? target : null,
       playerIds,
       rounds: [],
@@ -520,6 +534,73 @@
       const el = document.getElementById("manual-points");
       if (el) el.focus();
     }, 50);
+  }
+
+  function showPlayerMenu(playerId) {
+    const p = playerById(playerId);
+    if (!p) return;
+    modalRoot.innerHTML = `
+      <div class="modal-backdrop" data-action="modal-backdrop">
+        <div class="modal">
+          <h3>${esc(p.name)}</h3>
+          <div class="menu-list">
+            <button class="btn block" data-action="pm-photo" data-id="${p.id}">📷 ${p.photo ? "Change photo" : "Add photo"}</button>
+            ${p.photo ? `<button class="btn block" data-action="pm-remove-photo" data-id="${p.id}">✕ Remove photo</button>` : ""}
+            <button class="btn block" data-action="pm-rename" data-id="${p.id}">✎ Rename</button>
+            <button class="btn block danger" data-action="pm-delete" data-id="${p.id}">🗑 Delete player</button>
+            <button class="btn block ghost" data-action="modal-cancel">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ---------------------------------------------------------------- photos
+
+  // Hidden file input: on iOS, accept="image/*" offers Take Photo or the
+  // photo library. The chosen image is center-cropped square, shrunk to
+  // 96px, and stored as a small JPEG data URL on the player.
+  const photoInput = document.createElement("input");
+  photoInput.type = "file";
+  photoInput.accept = "image/*";
+  photoInput.hidden = true;
+  document.body.appendChild(photoInput);
+  let pendingPhotoPlayerId = null;
+
+  photoInput.addEventListener("change", () => {
+    const file = photoInput.files && photoInput.files[0];
+    const playerId = pendingPhotoPlayerId;
+    pendingPhotoPlayerId = null;
+    photoInput.value = "";
+    if (file && playerId) setPlayerPhoto(playerId, file);
+  });
+
+  function setPlayerPhoto(playerId, file) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const SIZE = 96;
+      const canvas = document.createElement("canvas");
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      const side = Math.min(img.width, img.height);
+      canvas.getContext("2d").drawImage(
+        img,
+        (img.width - side) / 2, (img.height - side) / 2, side, side,
+        0, 0, SIZE, SIZE
+      );
+      const player = playerById(playerId);
+      if (player) {
+        player.photo = canvas.toDataURL("image/jpeg", 0.82);
+        save();
+        render();
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      alert("Could not read that image.");
+    };
+    img.src = url;
   }
 
   function addRound(gameId, playerId, points, method) {
@@ -973,20 +1054,59 @@
         }
         break;
       }
-      case "player-menu": {
+      case "ng-rule-pick": {
+        document.querySelectorAll("#ng-rule .seg-btn").forEach((b) => {
+          b.classList.toggle("active", b === target);
+        });
+        break;
+      }
+      case "toggle-rule": {
+        const game = db.games.find((g) => g.id === target.dataset.id);
+        if (!game || game.finishedAt) break;
+        game.winRule = game.winRule === "low" ? "high" : "low";
+        save();
+        render();
+        break;
+      }
+
+      case "player-menu":
+        showPlayerMenu(target.dataset.id);
+        break;
+      case "player-photo":
+      case "pm-photo":
+        closeModal();
+        pendingPhotoPlayerId = target.dataset.id;
+        photoInput.click();
+        break;
+      case "pm-remove-photo": {
+        const player = playerById(target.dataset.id);
+        if (player) {
+          delete player.photo;
+          save();
+        }
+        closeModal();
+        render();
+        break;
+      }
+      case "pm-rename": {
         const player = playerById(target.dataset.id);
         if (!player) break;
-        const choice = prompt(`${player.name} — type a new name to rename, or "delete" to remove:`, player.name);
-        if (choice === null) break;
-        if (choice.trim().toLowerCase() === "delete") {
-          if (confirm(`Remove ${player.name}? Their past scores stay in game history.`)) {
-            db.players = db.players.filter((p) => p.id !== player.id);
-            save();
-            render();
-          }
-        } else if (choice.trim() && choice.trim() !== player.name) {
-          player.name = choice.trim();
+        const name = prompt("Player name:", player.name);
+        closeModal();
+        if (name && name.trim()) {
+          player.name = name.trim();
           save();
+        }
+        render();
+        break;
+      }
+      case "pm-delete": {
+        const player = playerById(target.dataset.id);
+        if (!player) break;
+        if (confirm(`Remove ${player.name}? Their past scores stay in game history.`)) {
+          db.players = db.players.filter((p) => p.id !== player.id);
+          save();
+          closeModal();
           render();
         }
         break;
@@ -1039,7 +1159,9 @@
     const btn = ev.target.closest("button[data-tab]");
     if (!btn) return;
     state.tab = btn.dataset.tab;
-    if (state.tab !== "games") state.gameId = null;
+    // Tapping any tab (including Games while inside a game) returns to the
+    // tab's top-level view.
+    state.gameId = null;
     render();
   });
 
