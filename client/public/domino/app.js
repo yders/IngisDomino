@@ -255,7 +255,6 @@
       state.gameId = null;
       return renderGamesList();
     }
-    const leaders = new Set(leadersOf(game));
     const finished = !!game.finishedAt;
     const ruleLabel = game.winRule === "low" ? "lowest score wins" : "highest score wins";
 
@@ -285,7 +284,7 @@
         ? `${n} round${n === 1 ? "" : "s"} · avg ${st.avg.toFixed(1)}${st.zeros ? ` · ${st.zeros}× 🥚` : ""}`
         : "no rounds yet";
       html += `
-        <div class="card ${leaders.has(row.playerId) && game.rounds.length ? "leader" : ""}">
+        <div class="card">
           <div class="score-row">
             <span class="avatar">${p ? p.avatar : "👤"}</span>
             <div class="who">

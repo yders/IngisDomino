@@ -184,8 +184,6 @@ main {
 }
 .score-row .actions .cam { background: var(--accent); border-color: var(--accent); }
 
-.leader { outline: 2px solid var(--gold); }
-
 .target-banner {
   background: var(--accent-dark);
   color: var(--accent);
