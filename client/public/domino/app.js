@@ -667,14 +667,24 @@
       camFail("Camera is not available here. Note: the camera only works over HTTPS. You can still close this and enter the count manually (✎).");
       return;
     }
-    try {
-      cam.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-    } catch (e) {
-      camFail("Could not open the camera (" + e.name + "). Check camera permissions for this site, or close and enter the count manually (✎).");
-      return;
+    // Reuse the stream acquired earlier this session: calling getUserMedia
+    // again makes iOS home-screen apps re-prompt for permission on every
+    // scan, so ask once and keep the stream (capture is disabled while the
+    // camera view is closed).
+    const liveTrack = cam.stream && cam.stream.getVideoTracks().find((t) => t.readyState === "live");
+    if (liveTrack) {
+      for (const t of cam.stream.getTracks()) t.enabled = true;
+    } else {
+      try {
+        cam.stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch (e) {
+        cam.stream = null;
+        camFail("Could not open the camera (" + e.name + "). Check camera permissions for this site, or close and enter the count manually (✎).");
+        return;
+      }
     }
     cam.video.srcObject = cam.stream;
     try {
@@ -865,13 +875,22 @@
     document.body.style.overflow = "";
     cancelAnimationFrame(cam.raf);
     clearInterval(cam.detectTimer);
+    // Disable capture but keep the stream, so reopening the camera does not
+    // trigger a new iOS permission prompt. Fully released on pagehide.
+    if (cam.stream) {
+      for (const t of cam.stream.getTracks()) t.enabled = false;
+    }
+    cam.onConfirm = null;
+  }
+
+  function releaseCamera() {
     if (cam.stream) {
       for (const t of cam.stream.getTracks()) t.stop();
       cam.stream = null;
+      cam.video.srcObject = null;
     }
-    cam.video.srcObject = null;
-    cam.onConfirm = null;
   }
+  window.addEventListener("pagehide", releaseCamera);
 
   function confirmCamera() {
     const count = currentCount();
