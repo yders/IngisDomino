@@ -348,7 +348,7 @@
             <div class="who">
               <div class="name">${esc(s.player.name)}</div>
               <div class="sub">${s.wins} win${s.wins === 1 ? "" : "s"} · ${s.games} game${s.games === 1 ? "" : "s"}</div>
-              ${s.rounds ? `<div class="sub">avg ${(s.points / s.rounds).toFixed(1)}/round · ${s.zeros}× 🥚</div>` : ""}
+              ${s.rounds ? `<div class="sub">avg ${(s.points / s.rounds).toFixed(1)}/round${s.zeros ? ` · ${s.zeros}× 🥚` : ""}</div>` : ""}
             </div>
             <span class="pts">${s.points}</span>
             <button class="menu" data-action="player-menu" data-id="${s.player.id}">⋯</button>
@@ -770,10 +770,10 @@
     b.minus.hidden = !settled;
     b.plus.hidden = !settled;
     cam.hintEl.textContent = cam.counting
-      ? "Counting the captured photo…"
+      ? "Counting the photo…"
       : cam.frozen
-        ? "Check the circles — fix the count with − / ＋ if needed"
-        : "Point the camera at the tiles, then capture";
+        ? "Check the green circles — fix the count with − / ＋ if needed"
+        : "Point at the tiles, then tap the round button";
   }
 
   // Detect on a full-resolution still, working at up to 720px wide for
