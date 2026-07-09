@@ -639,3 +639,36 @@ table.scoreboard {
 .seg-btn.active { background: var(--mint); color: var(--mint-ink); }
 
 .menu-list { display: flex; flex-direction: column; gap: 9px; }
+
+/* Manual entry sheet: who we're scoring + type-or-shoot row */
+.sheet-player { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.sheet-player h3 { margin: 0; }
+.sheet-player .avatar { font-size: 34px; line-height: 1; }
+.sheet-player .avatar-img { width: 46px; height: 46px; }
+
+.entry-row { display: flex; gap: 10px; margin-bottom: 16px; }
+.entry-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+}
+.entry-row input:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px var(--mint-tint); }
+.cam-shortcut {
+  width: 58px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--mint-bright), #22c795);
+  box-shadow: 0 5px 14px rgba(46, 217, 168, 0.25);
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.cam-shortcut:active { transform: scale(0.93); }

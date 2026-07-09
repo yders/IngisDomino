@@ -532,13 +532,22 @@
       .slice(start === -1 ? 0 : start)
       .concat(game.playerIds.slice(0, start === -1 ? 0 : start));
     manualQueue.index = 0;
+    renderManualSheet();
+  }
 
+  // Builds (or rebuilds, when resuming after a camera detour) the manual
+  // entry sheet for the queue's current player.
+  function renderManualSheet() {
     modalRoot.innerHTML = `
       <div class="modal-backdrop" data-action="modal-backdrop">
         <div class="modal">
-          <h3>Eyes for <span id="manual-name"></span></h3>
-          <div class="field">
+          <div class="sheet-player">
+            <span id="manual-avatar"></span>
+            <h3>Eyes for <span id="manual-name"></span></h3>
+          </div>
+          <div class="entry-row">
             <input type="number" id="manual-points" inputmode="numeric" min="0" enterkeyhint="done" />
+            <button class="cam-shortcut" data-action="manual-camera" title="Count with camera">📷</button>
           </div>
           <div class="btn-row">
             <button class="btn ghost" data-action="modal-cancel">Done</button>
@@ -557,6 +566,8 @@
     if (!nameEl || !input) return;
     const playerId = manualQueue.ids[manualQueue.index];
     nameEl.textContent = playerName(playerId);
+    const avatarEl = document.getElementById("manual-avatar");
+    if (avatarEl) avatarEl.innerHTML = avatarHtml(playerById(playerId));
     const progress = document.getElementById("manual-progress");
     if (progress) {
       progress.textContent =
@@ -690,8 +701,9 @@
     };
   }
 
-  async function openCamera(title, onConfirm) {
+  async function openCamera(title, onConfirm, onClose) {
     cam.onConfirm = onConfirm;
+    cam.onClose = onClose || null;
     cam.titleEl.textContent = title;
     cam.pips = [];
     cam.detectedCount = 0;
@@ -921,6 +933,9 @@
       for (const t of cam.stream.getTracks()) t.enabled = false;
     }
     cam.onConfirm = null;
+    const onClose = cam.onClose;
+    cam.onClose = null;
+    if (onClose) onClose();
   }
 
   function releaseCamera() {
@@ -935,6 +950,7 @@
   function confirmCamera() {
     const count = currentCount();
     const cb = cam.onConfirm;
+    cam.onClose = null; // confirmed: the close callback must not also fire
     closeCamera();
     if (cb) cb(count);
   }
@@ -1077,6 +1093,24 @@
       case "manual-skip":
         manualAdvance();
         break;
+      case "manual-camera": {
+        // Camera detour without losing the walk-through: score this player
+        // with the camera, then the sheet comes back for the next player
+        // (or for the same player if the camera is closed without a count).
+        const playerId = manualQueue.ids[manualQueue.index];
+        const gameId = manualQueue.gameId;
+        closeModal();
+        openCamera(
+          `Counting for ${playerName(playerId)}`,
+          (count) => {
+            addRound(gameId, playerId, count, "camera");
+            manualQueue.index++;
+            if (manualQueue.index < manualQueue.ids.length) renderManualSheet();
+          },
+          () => renderManualSheet()
+        );
+        break;
+      }
       case "edit-cell": {
         const game = db.games.find((g) => g.id === target.dataset.game);
         if (!game || game.finishedAt) break;
