@@ -1,6 +1,6 @@
 /* Service worker: cache the app shell so the counter works offline.
  * Bump CACHE_VERSION whenever any shell file changes. */
-const CACHE_VERSION = "domino-v10";
+const CACHE_VERSION = "domino-v11";
 const SHELL = [
   "./",
   "./index.html",

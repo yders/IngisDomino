@@ -515,25 +515,65 @@
     render();
   }
 
+  // Manual entry walks through the whole table: tap ✎ on a player and the
+  // sheet starts there, then each Add advances to the next player in the
+  // game (each player once, wrapping around), so a 7-player round is
+  // type-Add, type-Add… with the number pad staying up the whole time.
+  // Focus must be called synchronously inside the tap handler or iOS will
+  // not raise the keyboard.
+  const manualQueue = { gameId: null, ids: [], index: 0 };
+
   function showManualModal(gameId, playerId) {
+    const game = db.games.find((g) => g.id === gameId);
+    if (!game) return;
+    const start = game.playerIds.indexOf(playerId);
+    manualQueue.gameId = gameId;
+    manualQueue.ids = game.playerIds
+      .slice(start === -1 ? 0 : start)
+      .concat(game.playerIds.slice(0, start === -1 ? 0 : start));
+    manualQueue.index = 0;
+
     modalRoot.innerHTML = `
       <div class="modal-backdrop" data-action="modal-backdrop">
         <div class="modal">
-          <h3>Points for ${esc(playerName(playerId))}</h3>
+          <h3>Eyes for <span id="manual-name"></span></h3>
           <div class="field">
-            <label>Eyes counted</label>
-            <input type="number" id="manual-points" inputmode="numeric" min="0" autofocus />
+            <input type="number" id="manual-points" inputmode="numeric" min="0" enterkeyhint="done" />
           </div>
           <div class="btn-row">
-            <button class="btn ghost" data-action="modal-cancel">Cancel</button>
-            <button class="btn primary" data-action="manual-save" data-game="${gameId}" data-player="${playerId}">Add</button>
+            <button class="btn ghost" data-action="modal-cancel">Done</button>
+            <button class="btn ghost" data-action="manual-skip" ${manualQueue.ids.length > 1 ? "" : "hidden"}>Skip ›</button>
+            <button class="btn primary" data-action="manual-save">✓ Add</button>
           </div>
+          <div class="hint-line" id="manual-progress"></div>
         </div>
       </div>`;
-    setTimeout(() => {
-      const el = document.getElementById("manual-points");
-      if (el) el.focus();
-    }, 50);
+    updateManualSheet();
+  }
+
+  function updateManualSheet() {
+    const nameEl = document.getElementById("manual-name");
+    const input = document.getElementById("manual-points");
+    if (!nameEl || !input) return;
+    const playerId = manualQueue.ids[manualQueue.index];
+    nameEl.textContent = playerName(playerId);
+    const progress = document.getElementById("manual-progress");
+    if (progress) {
+      progress.textContent =
+        manualQueue.ids.length > 1 ? `Player ${manualQueue.index + 1} of ${manualQueue.ids.length}` : "";
+    }
+    input.value = "";
+    input.focus();
+  }
+
+  // Advance to the next player, or close after the last one.
+  function manualAdvance() {
+    manualQueue.index++;
+    if (manualQueue.index >= manualQueue.ids.length) {
+      closeModal();
+    } else {
+      updateManualSheet();
+    }
   }
 
   function showPlayerMenu(playerId) {
@@ -1030,10 +1070,13 @@
           alert("Enter the number of eyes.");
           break;
         }
-        closeModal();
-        addRound(target.dataset.game, target.dataset.player, points, "manual");
+        addRound(manualQueue.gameId, manualQueue.ids[manualQueue.index], points, "manual");
+        manualAdvance();
         break;
       }
+      case "manual-skip":
+        manualAdvance();
+        break;
       case "edit-cell": {
         const game = db.games.find((g) => g.id === target.dataset.game);
         if (!game || game.finishedAt) break;
@@ -1193,6 +1236,10 @@
     } else if (ev.target.id === "ag-new-player") {
       ev.preventDefault();
       inlineAddPlayer("ag-players", "ag-new-player");
+    } else if (ev.target.id === "manual-points") {
+      ev.preventDefault();
+      const saveBtn = document.querySelector('[data-action="manual-save"]');
+      if (saveBtn) saveBtn.click();
     }
   });
 
